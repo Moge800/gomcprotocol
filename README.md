@@ -1,7 +1,6 @@
 # gomcprotocol
 
-A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP).  
-Inspired by [pymcprotocol](https://github.com/senrust/pymcprotocol) and [micromcprotocol](https://github.com/Moge800/micromcprotocol).
+A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP).
 
 ## Features
 

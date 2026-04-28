@@ -1,7 +1,6 @@
 # gomcprotocol
 
-三菱電機 PLC と MC プロトコル（SLMP）で通信するための Go ライブラリです。  
-[pymcprotocol](https://github.com/senrust/pymcprotocol) および [micromcprotocol](https://github.com/Moge800/micromcprotocol) にインスパイアされています。
+三菱電機 PLC と MC プロトコル（SLMP）で通信するための Go ライブラリです。
 
 ## 機能
 
