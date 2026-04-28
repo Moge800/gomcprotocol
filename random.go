@@ -44,7 +44,7 @@ func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 		for i, d := range dwords {
 			body = append(body, addrBin(dDevs[i], d.Addr)...)
 		}
-		resp, err := xferBin(c.conn, buildBin(c.timer, 0x0403, 0x0000, body))
+		resp, err := c.sendBin(buildBin(c.timer, 0x0403, 0x0000, body))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -71,7 +71,7 @@ func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 	for i, d := range dwords {
 		body += addrAsc(dDevs[i], d.Addr)
 	}
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, 0x0403, 0x0000, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, 0x0403, 0x0000, body))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -122,7 +122,7 @@ func (c *Client3E) RandomWrite(words []DeviceAddr, wordVals []uint16, dwords []D
 			v := dwordVals[i]
 			body = append(body, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
 		}
-		resp, err := xferBin(c.conn, buildBin(c.timer, 0x1402, 0x0000, body))
+		resp, err := c.sendBin(buildBin(c.timer, 0x1402, 0x0000, body))
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (c *Client3E) RandomWrite(words []DeviceAddr, wordVals []uint16, dwords []D
 	for i, d := range dwords {
 		body += addrAsc(dDevs[i], d.Addr) + fmt.Sprintf("%08X", dwordVals[i])
 	}
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, 0x1402, 0x0000, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, 0x1402, 0x0000, body))
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (c *Client3E) RandomWriteBits(devices []DeviceAddr, values []bool) error {
 				body = append(body, 0x00)
 			}
 		}
-		resp, err := xferBin(c.conn, buildBin(c.timer, 0x1402, 0x0001, body))
+		resp, err := c.sendBin(buildBin(c.timer, 0x1402, 0x0001, body))
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func (c *Client3E) RandomWriteBits(devices []DeviceAddr, values []bool) error {
 			body += "00"
 		}
 	}
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, 0x1402, 0x0001, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, 0x1402, 0x0001, body))
 	if err != nil {
 		return err
 	}

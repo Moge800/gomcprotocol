@@ -88,6 +88,32 @@ func chkAsc(data string) (string, error) {
 	return data[22:], nil
 }
 
+// xferBinUDP sends a binary frame over UDP and reads the response datagram.
+func xferBinUDP(conn net.Conn, frame []byte) ([]byte, error) {
+	if _, err := conn.Write(frame); err != nil {
+		return nil, connErr("send: " + err.Error())
+	}
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return nil, connErr("recv: " + err.Error())
+	}
+	return buf[:n], nil
+}
+
+// xferAscUDP sends an ASCII frame over UDP and reads the response datagram.
+func xferAscUDP(conn net.Conn, frame string) (string, error) {
+	if _, err := conn.Write([]byte(frame)); err != nil {
+		return "", connErr("send: " + err.Error())
+	}
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return "", connErr("recv: " + err.Error())
+	}
+	return string(buf[:n]), nil
+}
+
 // addrBin encodes a device address for binary mode.
 // Layout: [addr_lo, addr_mid, addr_hi, device_code]
 func addrBin(dev string, addr int) []byte {

@@ -472,3 +472,103 @@ func TestNew3EClientInvalidMode(t *testing.T) {
 		t.Fatal("expected error for invalid mode")
 	}
 }
+
+// ── UDP transport ─────────────────────────────────────────────────────────────
+
+// mockUDPServer starts a UDP listener, serves one datagram with resp, then closes.
+func mockUDPServer(t *testing.T, resp []byte) (host string, port int, done func()) {
+	t.Helper()
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		buf := make([]byte, 512)
+		_, addr, err := conn.ReadFrom(buf)
+		if err != nil {
+			return
+		}
+		conn.WriteTo(resp, addr)
+	}()
+	h, p, _ := net.SplitHostPort(conn.LocalAddr().String())
+	port, _ = strconv.Atoi(p)
+	return h, port, func() { conn.Close() }
+}
+
+func connectUDP(t *testing.T, host string, port int, mode Mode) *Client3E {
+	t.Helper()
+	c, err := New3EClientUDP(host, port, mode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestReadWordsUDP(t *testing.T) {
+	data := make([]byte, 4)
+	binary.LittleEndian.PutUint16(data[0:], 100)
+	binary.LittleEndian.PutUint16(data[2:], 200)
+	host, port, done := mockUDPServer(t, binResp(0, data))
+	defer done()
+
+	c := connectUDP(t, host, port, ModeBinary)
+	defer c.Close()
+
+	got, err := c.ReadWords("D", 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0] != 100 || got[1] != 200 {
+		t.Errorf("ReadWords UDP = %v, want [100 200]", got)
+	}
+}
+
+func TestWriteWordsUDP(t *testing.T) {
+	host, port, done := mockUDPServer(t, binResp(0, nil))
+	defer done()
+
+	c := connectUDP(t, host, port, ModeBinary)
+	defer c.Close()
+
+	if err := c.WriteWords("D", 0, []uint16{1, 2, 3}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadBitsUDP(t *testing.T) {
+	host, port, done := mockUDPServer(t, binResp(0, []byte{0x10, 0x00}))
+	defer done()
+
+	c := connectUDP(t, host, port, ModeBinary)
+	defer c.Close()
+
+	got, err := c.ReadBits("M", 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got[0] || got[1] {
+		t.Errorf("ReadBits UDP = %v, want [true false]", got)
+	}
+}
+
+func TestWriteBitsUDP(t *testing.T) {
+	host, port, done := mockUDPServer(t, binResp(0, nil))
+	defer done()
+
+	c := connectUDP(t, host, port, ModeBinary)
+	defer c.Close()
+
+	if err := c.WriteBits("M", 0, []bool{true, false}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNew3EClientUDPInvalidMode(t *testing.T) {
+	_, err := New3EClientUDP("127.0.0.1", 1025, Mode(99))
+	if err == nil {
+		t.Fatal("expected error for invalid mode")
+	}
+}

@@ -8,16 +8,20 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-// Client3E is a 3E frame MC Protocol TCP client.
+// Client3E is a 3E frame MC Protocol client (TCP or UDP).
+// Safe for concurrent use; requests are serialized by an internal mutex.
 type Client3E struct {
+	mu      sync.Mutex
 	host    string
 	port    int
 	mode    Mode
 	timeout time.Duration
 	timer   uint16
+	isUDP   bool
 	conn    net.Conn
 }
 
@@ -35,14 +39,51 @@ func New3EClient(host string, port int, mode Mode) (*Client3E, error) {
 	}, nil
 }
 
-// Connect establishes the TCP connection to the PLC.
+// New3EClientUDP creates a new 3E frame client using UDP transport.
+// Call Connect before use.
+func New3EClientUDP(host string, port int, mode Mode) (*Client3E, error) {
+	c, err := New3EClient(host, port, mode)
+	if err != nil {
+		return nil, err
+	}
+	c.isUDP = true
+	return c, nil
+}
+
+// Connect establishes the connection to the PLC (TCP or UDP).
 func (c *Client3E) Connect() error {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", c.host, c.port), c.timeout)
+	proto := "tcp"
+	if c.isUDP {
+		proto = "udp"
+	}
+	conn, err := net.DialTimeout(proto, fmt.Sprintf("%s:%d", c.host, c.port), c.timeout)
 	if err != nil {
 		return &MCProtocolConnectionError{msg: "connect: " + err.Error()}
 	}
 	c.conn = conn
 	return nil
+}
+
+// sendBin sends a binary frame and returns the response.
+// Acquires the mutex to serialize concurrent callers.
+func (c *Client3E) sendBin(frame []byte) ([]byte, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.isUDP {
+		return xferBinUDP(c.conn, frame)
+	}
+	return xferBin(c.conn, frame)
+}
+
+// sendAsc sends an ASCII frame and returns the response.
+// Acquires the mutex to serialize concurrent callers.
+func (c *Client3E) sendAsc(frame string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.isUDP {
+		return xferAscUDP(c.conn, frame)
+	}
+	return xferAsc(c.conn, frame)
 }
 
 // Close closes the TCP connection.
@@ -83,7 +124,7 @@ func (c *Client3E) ReadWords(device string, start, count int) ([]uint16, error) 
 		return nil, err
 	}
 	if c.mode == ModeBinary {
-		resp, err := xferBin(c.conn, buildBin(c.timer, cmdRead, subcWord, c.binBody(dev, start, count)))
+		resp, err := c.sendBin(buildBin(c.timer, cmdRead, subcWord, c.binBody(dev, start, count)))
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +142,7 @@ func (c *Client3E) ReadWords(device string, start, count int) ([]uint16, error) 
 		return vals, nil
 	}
 	body := addrAsc(dev, start) + fmt.Sprintf("%04X", count)
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, cmdRead, subcWord, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, cmdRead, subcWord, body))
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +173,7 @@ func (c *Client3E) WriteWords(device string, start int, values []uint16) error {
 			binary.LittleEndian.PutUint16(wbuf[i*2:], v)
 		}
 		body := append(c.binBody(dev, start, len(values)), wbuf...)
-		resp, err := xferBin(c.conn, buildBin(c.timer, cmdWrite, subcWord, body))
+		resp, err := c.sendBin(buildBin(c.timer, cmdWrite, subcWord, body))
 		if err != nil {
 			return err
 		}
@@ -143,7 +184,7 @@ func (c *Client3E) WriteWords(device string, start int, values []uint16) error {
 	for _, v := range values {
 		body += fmt.Sprintf("%04X", v)
 	}
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, cmdWrite, subcWord, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, cmdWrite, subcWord, body))
 	if err != nil {
 		return err
 	}
@@ -158,7 +199,7 @@ func (c *Client3E) ReadBits(device string, start, count int) ([]bool, error) {
 		return nil, err
 	}
 	if c.mode == ModeBinary {
-		resp, err := xferBin(c.conn, buildBin(c.timer, cmdRead, subcBit, c.binBody(dev, start, count)))
+		resp, err := c.sendBin(buildBin(c.timer, cmdRead, subcBit, c.binBody(dev, start, count)))
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +222,7 @@ func (c *Client3E) ReadBits(device string, start, count int) ([]bool, error) {
 		return bits, nil
 	}
 	body := addrAsc(dev, start) + fmt.Sprintf("%04X", count)
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, cmdRead, subcBit, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, cmdRead, subcBit, body))
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +258,7 @@ func (c *Client3E) WriteBits(device string, start int, values []bool) error {
 			}
 		}
 		body := append(c.binBody(dev, start, len(values)), buf...)
-		resp, err := xferBin(c.conn, buildBin(c.timer, cmdWrite, subcBit, body))
+		resp, err := c.sendBin(buildBin(c.timer, cmdWrite, subcBit, body))
 		if err != nil {
 			return err
 		}
@@ -232,7 +273,7 @@ func (c *Client3E) WriteBits(device string, start int, values []bool) error {
 			body += "0"
 		}
 	}
-	resp, err := xferAsc(c.conn, buildAsc(c.timer, cmdWrite, subcBit, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, cmdWrite, subcBit, body))
 	if err != nil {
 		return err
 	}
