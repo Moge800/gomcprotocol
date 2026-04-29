@@ -426,6 +426,9 @@ func (c *Client4E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 	if err != nil {
 		return nil, nil, err
 	}
+	if expected := len(words)*4 + len(dwords)*8; len(raw) < expected {
+		return nil, nil, connErr(fmt.Sprintf("short payload: expected %d chars, got %d", expected, len(raw)))
+	}
 	wVals := make([]uint16, len(words))
 	for i := range wVals {
 		v, err := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
