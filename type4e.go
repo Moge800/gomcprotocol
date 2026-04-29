@@ -41,7 +41,10 @@ func New4EClient(host string, port int, mode Mode) (*Client4E, error) {
 
 // Connect establishes the TCP connection to the PLC.
 func (c *Client4E) Connect() error {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", c.host, c.port), c.timeout)
+	c.mu.Lock()
+	timeout := c.timeout
+	c.mu.Unlock()
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", c.host, c.port), timeout)
 	if err != nil {
 		return &MCProtocolConnectionError{msg: "connect: " + err.Error()}
 	}

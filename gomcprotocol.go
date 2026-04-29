@@ -56,7 +56,10 @@ func (c *Client3E) Connect() error {
 	if c.isUDP {
 		proto = "udp"
 	}
-	conn, err := net.DialTimeout(proto, fmt.Sprintf("%s:%d", c.host, c.port), c.timeout)
+	c.mu.Lock()
+	timeout := c.timeout
+	c.mu.Unlock()
+	conn, err := net.DialTimeout(proto, fmt.Sprintf("%s:%d", c.host, c.port), timeout)
 	if err != nil {
 		return &MCProtocolConnectionError{msg: "connect: " + err.Error()}
 	}

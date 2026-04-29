@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // ── 4E mock server ────────────────────────────────────────────────────────────
@@ -490,5 +491,33 @@ func TestSerialNumberWrapAround(t *testing.T) {
 	s := c.nextSerial()
 	if s != 1 {
 		t.Errorf("expected wrap to 1, got %d", s)
+	}
+}
+
+func Test4ESetTimeout(t *testing.T) {
+	// Start a server that accepts but never responds.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 512)
+		conn.Read(buf) // read request, never reply
+	}()
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ := strconv.Atoi(p)
+	c := connect4E(t, h, port, ModeBinary)
+	defer c.Close()
+
+	c.SetTimeout(50 * time.Millisecond)
+	_, err = c.ReadWords("D", 0, 1)
+	if _, ok := err.(*MCProtocolConnectionError); !ok {
+		t.Errorf("expected MCProtocolConnectionError on timeout, got %v", err)
 	}
 }

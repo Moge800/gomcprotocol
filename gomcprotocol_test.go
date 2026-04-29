@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // ── mock server ───────────────────────────────────────────────────────────────
@@ -570,5 +571,33 @@ func TestNew3EClientUDPInvalidMode(t *testing.T) {
 	_, err := New3EClientUDP("127.0.0.1", 1025, Mode(99))
 	if err == nil {
 		t.Fatal("expected error for invalid mode")
+	}
+}
+
+func TestSetTimeout(t *testing.T) {
+	// Start a server that accepts but never responds.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 512)
+		conn.Read(buf) // read request, never reply
+	}()
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ := strconv.Atoi(p)
+	c := connect(t, h, port, ModeBinary)
+	defer c.Close()
+
+	c.SetTimeout(50 * time.Millisecond)
+	_, err = c.ReadWords("D", 0, 1)
+	if _, ok := err.(*MCProtocolConnectionError); !ok {
+		t.Errorf("expected MCProtocolConnectionError on timeout, got %v", err)
 	}
 }
