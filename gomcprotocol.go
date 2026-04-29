@@ -77,7 +77,7 @@ func (c *Client3E) sendBin(frame []byte) ([]byte, error) {
 	if c.conn == nil {
 		return nil, connErr("not connected")
 	}
-	c.conn.SetDeadline(time.Now().Add(c.timeout))
+	c.applyDeadline()
 	if c.isUDP {
 		return xferBinUDP(c.conn, frame)
 	}
@@ -92,7 +92,7 @@ func (c *Client3E) sendAsc(frame string) (string, error) {
 	if c.conn == nil {
 		return "", connErr("not connected")
 	}
-	c.conn.SetDeadline(time.Now().Add(c.timeout))
+	c.applyDeadline()
 	if c.isUDP {
 		return xferAscUDP(c.conn, frame)
 	}
@@ -100,11 +100,22 @@ func (c *Client3E) sendAsc(frame string) (string, error) {
 }
 
 // SetTimeout sets the per-request I/O deadline and the connect timeout.
+// A value of 0 or less disables per-request deadlines entirely.
 // Default is 5 seconds.
 func (c *Client3E) SetTimeout(d time.Duration) {
 	c.mu.Lock()
 	c.timeout = d
 	c.mu.Unlock()
+}
+
+// applyDeadline sets or clears the connection deadline.
+// Must be called with c.mu held.
+func (c *Client3E) applyDeadline() {
+	if c.timeout > 0 {
+		c.conn.SetDeadline(time.Now().Add(c.timeout))
+	} else {
+		c.conn.SetDeadline(time.Time{})
+	}
 }
 
 // Close closes the connection.

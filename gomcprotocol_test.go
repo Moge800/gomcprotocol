@@ -575,12 +575,15 @@ func TestNew3EClientUDPInvalidMode(t *testing.T) {
 }
 
 func TestSetTimeout(t *testing.T) {
-	// Start a server that accepts but never responds.
+	// Start a server that reads the request but never replies and keeps the
+	// connection open, so the client must time out via deadline (not EOF).
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer l.Close()
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
 		conn, err := l.Accept()
 		if err != nil {
@@ -588,7 +591,8 @@ func TestSetTimeout(t *testing.T) {
 		}
 		defer conn.Close()
 		buf := make([]byte, 512)
-		conn.Read(buf) // read request, never reply
+		conn.Read(buf) // consume the request
+		<-done         // hold connection open until test exits
 	}()
 	h, p, _ := net.SplitHostPort(l.Addr().String())
 	port, _ := strconv.Atoi(p)
@@ -596,8 +600,13 @@ func TestSetTimeout(t *testing.T) {
 	defer c.Close()
 
 	c.SetTimeout(50 * time.Millisecond)
+	start := time.Now()
 	_, err = c.ReadWords("D", 0, 1)
+	elapsed := time.Since(start)
 	if _, ok := err.(*MCProtocolConnectionError); !ok {
 		t.Errorf("expected MCProtocolConnectionError on timeout, got %v", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("timeout took too long: %v (expected ~50ms)", elapsed)
 	}
 }

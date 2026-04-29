@@ -55,11 +55,22 @@ func (c *Client4E) Connect() error {
 }
 
 // SetTimeout sets the per-request I/O deadline and the connect timeout.
+// A value of 0 or less disables per-request deadlines entirely.
 // Default is 5 seconds.
 func (c *Client4E) SetTimeout(d time.Duration) {
 	c.mu.Lock()
 	c.timeout = d
 	c.mu.Unlock()
+}
+
+// applyDeadline sets or clears the connection deadline.
+// Must be called with c.mu held.
+func (c *Client4E) applyDeadline() {
+	if c.timeout > 0 {
+		c.conn.SetDeadline(time.Now().Add(c.timeout))
+	} else {
+		c.conn.SetDeadline(time.Time{})
+	}
 }
 
 // Close closes the TCP connection.
@@ -117,7 +128,7 @@ func (c *Client4E) sendBin(cmd, subcmd uint16, body []byte) ([]byte, error) {
 	if c.conn == nil {
 		return nil, connErr("not connected")
 	}
-	c.conn.SetDeadline(time.Now().Add(c.timeout))
+	c.applyDeadline()
 	serial := c.nextSerial()
 	payload := make([]byte, 4+len(body))
 	binary.LittleEndian.PutUint16(payload[0:], cmd)
@@ -145,7 +156,7 @@ func (c *Client4E) sendAsc(cmd, subcmd uint16, body string) (string, error) {
 	if c.conn == nil {
 		return "", connErr("not connected")
 	}
-	c.conn.SetDeadline(time.Now().Add(c.timeout))
+	c.applyDeadline()
 	serial := c.nextSerial()
 	inner := fmt.Sprintf("%04X%04X%s", cmd, subcmd, body)
 	frame := c.build4EAsc(serial, inner)
