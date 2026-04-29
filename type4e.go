@@ -118,7 +118,7 @@ func (c *Client4E) sendBin(cmd, subcmd uint16, body []byte) ([]byte, error) {
 	if _, err := io.ReadFull(c.conn, hdr); err != nil {
 		return nil, connErr("recv header: " + err.Error())
 	}
-	dataLen := binary.LittleEndian.Uint16(hdr[11:])
+	dataLen := int(binary.LittleEndian.Uint16(hdr[11:]))
 	data := make([]byte, dataLen)
 	if _, err := io.ReadFull(c.conn, data); err != nil {
 		return nil, connErr("recv body: " + err.Error())
@@ -143,11 +143,11 @@ func (c *Client4E) sendAsc(cmd, subcmd uint16, body string) (string, error) {
 	if _, err := io.ReadFull(c.conn, hdr); err != nil {
 		return "", connErr("recv header: " + err.Error())
 	}
-	n, err := strconv.ParseInt(string(hdr[22:26]), 16, 32)
+	n, err := strconv.ParseUint(string(hdr[22:26]), 16, 16)
 	if err != nil {
 		return "", connErr("invalid response length")
 	}
-	respBody := make([]byte, n)
+	respBody := make([]byte, int(n))
 	if _, err := io.ReadFull(c.conn, respBody); err != nil {
 		return "", connErr("recv body: " + err.Error())
 	}

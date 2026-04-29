@@ -38,7 +38,7 @@ func xferBin(conn net.Conn, frame []byte) ([]byte, error) {
 	if _, err := io.ReadFull(conn, hdr); err != nil {
 		return nil, connErr("recv header: " + err.Error())
 	}
-	body := make([]byte, binary.LittleEndian.Uint16(hdr[7:]))
+	body := make([]byte, int(binary.LittleEndian.Uint16(hdr[7:])))
 	if _, err := io.ReadFull(conn, body); err != nil {
 		return nil, connErr("recv body: " + err.Error())
 	}
@@ -53,11 +53,11 @@ func xferAsc(conn net.Conn, frame string) (string, error) {
 	if _, err := io.ReadFull(conn, hdr); err != nil {
 		return "", connErr("recv header: " + err.Error())
 	}
-	n, err := strconv.ParseInt(string(hdr[14:18]), 16, 32)
+	n, err := strconv.ParseUint(string(hdr[14:18]), 16, 16)
 	if err != nil {
 		return "", connErr("invalid response length")
 	}
-	body := make([]byte, n)
+	body := make([]byte, int(n))
 	if _, err := io.ReadFull(conn, body); err != nil {
 		return "", connErr("recv body: " + err.Error())
 	}
