@@ -1,5 +1,5 @@
-// Package gomcprotocol implements a Mitsubishi MC Protocol (3E frame) TCP client.
-// Inspired by pymcprotocol and micromcprotocol.
+// Package gomcprotocol implements Mitsubishi MC Protocol clients for 3E and 4E frames
+// over TCP and UDP transports.
 package gomcprotocol
 
 import (
@@ -69,6 +69,10 @@ func (c *Client3E) Connect() error {
 func (c *Client3E) sendBin(frame []byte) ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.conn == nil {
+		return nil, connErr("not connected")
+	}
+	c.conn.SetDeadline(time.Now().Add(c.timeout))
 	if c.isUDP {
 		return xferBinUDP(c.conn, frame)
 	}
@@ -80,14 +84,20 @@ func (c *Client3E) sendBin(frame []byte) ([]byte, error) {
 func (c *Client3E) sendAsc(frame string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.conn == nil {
+		return "", connErr("not connected")
+	}
+	c.conn.SetDeadline(time.Now().Add(c.timeout))
 	if c.isUDP {
 		return xferAscUDP(c.conn, frame)
 	}
 	return xferAsc(c.conn, frame)
 }
 
-// Close closes the TCP connection.
+// Close closes the connection.
 func (c *Client3E) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.conn != nil {
 		err := c.conn.Close()
 		c.conn = nil
@@ -155,7 +165,10 @@ func (c *Client3E) ReadWords(device string, start, count int) ([]uint16, error) 
 	}
 	vals := make([]uint16, count)
 	for i := range vals {
-		v, _ := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		v, err := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		if err != nil {
+			return nil, connErr(fmt.Sprintf("invalid word at index %d: %v", i, err))
+		}
 		vals[i] = uint16(v)
 	}
 	return vals, nil

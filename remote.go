@@ -100,11 +100,11 @@ func (c *Client3E) RemoteLatchClear() error {
 // The connection may be closed by the PLC before a response is received.
 func (c *Client3E) RemoteReset() error {
 	if c.mode == ModeBinary {
-		c.sendBin(buildBin(c.timer, 0x1006, 0x0000, []byte{0x01, 0x00})) //nolint
+		_, err := c.sendBin(buildBin(c.timer, 0x1006, 0x0000, []byte{0x01, 0x00}))
 		c.Close()
-		return nil
+		return err
 	}
-	c.sendAsc(buildAsc(c.timer, 0x1006, 0x0000, "0001")) //nolint
+	_, err := c.sendAsc(buildAsc(c.timer, 0x1006, 0x0000, "0001"))
 	c.Close()
-	return nil
+	return err
 }

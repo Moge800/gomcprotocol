@@ -35,6 +35,9 @@ func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 	if err != nil {
 		return nil, nil, err
 	}
+	if len(words) > 255 || len(dwords) > 255 {
+		return nil, nil, fmt.Errorf("device count must be <= 255")
+	}
 	if c.mode == ModeBinary {
 		body := make([]byte, 0, 2+4*(len(words)+len(dwords)))
 		body = append(body, byte(len(words)), byte(len(dwords)))
@@ -51,6 +54,10 @@ func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 		raw, err := chkBin(resp)
 		if err != nil {
 			return nil, nil, err
+		}
+		expected := len(words)*2 + len(dwords)*4
+		if len(raw) < expected {
+			return nil, nil, connErr(fmt.Sprintf("short payload: expected %d bytes, got %d", expected, len(raw)))
 		}
 		wVals := make([]uint16, len(words))
 		for i := range wVals {
@@ -81,13 +88,19 @@ func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 	}
 	wVals := make([]uint16, len(words))
 	for i := range wVals {
-		v, _ := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		v, err := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		if err != nil {
+			return nil, nil, connErr(fmt.Sprintf("invalid word at index %d: %v", i, err))
+		}
 		wVals[i] = uint16(v)
 	}
 	dVals := make([]uint32, len(dwords))
 	off := len(words) * 4
 	for i := range dVals {
-		v, _ := strconv.ParseUint(raw[off+i*8:off+(i+1)*8], 16, 32)
+		v, err := strconv.ParseUint(raw[off+i*8:off+(i+1)*8], 16, 32)
+		if err != nil {
+			return nil, nil, connErr(fmt.Sprintf("invalid dword at index %d: %v", i, err))
+		}
 		dVals[i] = uint32(v)
 	}
 	return wVals, dVals, nil
@@ -101,6 +114,9 @@ func (c *Client3E) RandomWrite(words []DeviceAddr, wordVals []uint16, dwords []D
 	}
 	if len(dwords) != len(dwordVals) {
 		return fmt.Errorf("dwords and dwordVals must be same length")
+	}
+	if len(words) > 255 || len(dwords) > 255 {
+		return fmt.Errorf("device count must be <= 255")
 	}
 	wDevs, err := c.validateAddrs(words)
 	if err != nil {
@@ -150,6 +166,9 @@ func (c *Client3E) RandomWrite(words []DeviceAddr, wordVals []uint16, dwords []D
 func (c *Client3E) RandomWriteBits(devices []DeviceAddr, values []bool) error {
 	if len(devices) != len(values) {
 		return fmt.Errorf("devices and values must be same length")
+	}
+	if len(devices) > 255 {
+		return fmt.Errorf("device count must be <= 255")
 	}
 	devs, err := c.validateAddrs(devices)
 	if err != nil {

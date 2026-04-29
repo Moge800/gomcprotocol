@@ -51,6 +51,8 @@ func (c *Client4E) Connect() error {
 
 // Close closes the TCP connection.
 func (c *Client4E) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.conn != nil {
 		err := c.conn.Close()
 		c.conn = nil
@@ -99,6 +101,10 @@ func (c *Client4E) build4EAsc(serial uint16, body string) string {
 func (c *Client4E) sendBin(cmd, subcmd uint16, body []byte) ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.conn == nil {
+		return nil, connErr("not connected")
+	}
+	c.conn.SetDeadline(time.Now().Add(c.timeout))
 	serial := c.nextSerial()
 	payload := make([]byte, 4+len(body))
 	binary.LittleEndian.PutUint16(payload[0:], cmd)
@@ -123,6 +129,10 @@ func (c *Client4E) sendBin(cmd, subcmd uint16, body []byte) ([]byte, error) {
 func (c *Client4E) sendAsc(cmd, subcmd uint16, body string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.conn == nil {
+		return "", connErr("not connected")
+	}
+	c.conn.SetDeadline(time.Now().Add(c.timeout))
 	serial := c.nextSerial()
 	inner := fmt.Sprintf("%04X%04X%s", cmd, subcmd, body)
 	frame := c.build4EAsc(serial, inner)
@@ -227,7 +237,10 @@ func (c *Client4E) ReadWords(device string, start, count int) ([]uint16, error) 
 	}
 	vals := make([]uint16, count)
 	for i := range vals {
-		v, _ := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		v, err := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		if err != nil {
+			return nil, connErr(fmt.Sprintf("invalid word at index %d: %v", i, err))
+		}
 		vals[i] = uint16(v)
 	}
 	return vals, nil
@@ -355,6 +368,9 @@ func (c *Client4E) WriteBits(device string, start int, values []bool) error {
 
 // RandomRead reads word and dword values from multiple devices (command 0x0403).
 func (c *Client4E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, error) {
+	if len(words) > 255 || len(dwords) > 255 {
+		return nil, nil, fmt.Errorf("device count must be <= 255")
+	}
 	wDevs, err := c.validateAddrs(words)
 	if err != nil {
 		return nil, nil, err
@@ -379,6 +395,10 @@ func (c *Client4E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 		raw, err := chk4EBin(resp)
 		if err != nil {
 			return nil, nil, err
+		}
+		expected := len(words)*2 + len(dwords)*4
+		if len(raw) < expected {
+			return nil, nil, connErr(fmt.Sprintf("short payload: expected %d bytes, got %d", expected, len(raw)))
 		}
 		wVals := make([]uint16, len(words))
 		for i := range wVals {
@@ -408,13 +428,19 @@ func (c *Client4E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 	}
 	wVals := make([]uint16, len(words))
 	for i := range wVals {
-		v, _ := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		v, err := strconv.ParseUint(raw[i*4:(i+1)*4], 16, 16)
+		if err != nil {
+			return nil, nil, connErr(fmt.Sprintf("invalid word at index %d: %v", i, err))
+		}
 		wVals[i] = uint16(v)
 	}
 	dVals := make([]uint32, len(dwords))
 	off := len(words) * 4
 	for i := range dVals {
-		v, _ := strconv.ParseUint(raw[off+i*8:off+(i+1)*8], 16, 32)
+		v, err := strconv.ParseUint(raw[off+i*8:off+(i+1)*8], 16, 32)
+		if err != nil {
+			return nil, nil, connErr(fmt.Sprintf("invalid dword at index %d: %v", i, err))
+		}
 		dVals[i] = uint32(v)
 	}
 	return wVals, dVals, nil
@@ -427,6 +453,9 @@ func (c *Client4E) RandomWrite(words []DeviceAddr, wordVals []uint16, dwords []D
 	}
 	if len(dwords) != len(dwordVals) {
 		return fmt.Errorf("dwords and dwordVals must be same length")
+	}
+	if len(words) > 255 || len(dwords) > 255 {
+		return fmt.Errorf("device count must be <= 255")
 	}
 	wDevs, err := c.validateAddrs(words)
 	if err != nil {
@@ -474,6 +503,9 @@ func (c *Client4E) RandomWrite(words []DeviceAddr, wordVals []uint16, dwords []D
 func (c *Client4E) RandomWriteBits(devices []DeviceAddr, values []bool) error {
 	if len(devices) != len(values) {
 		return fmt.Errorf("devices and values must be same length")
+	}
+	if len(devices) > 255 {
+		return fmt.Errorf("device count must be <= 255")
 	}
 	devs, err := c.validateAddrs(devices)
 	if err != nil {
