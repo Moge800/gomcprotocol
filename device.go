@@ -22,6 +22,8 @@ var binCode = map[string]byte{
 	"F":  0x93,
 	"SB": 0xA1,
 	"SW": 0xB5,
+	"SM": 0x91,
+	"SD": 0xA9,
 	"TN": 0xC2,
 	"CN": 0xC5,
 	"Z":  0xCC,
@@ -30,7 +32,7 @@ var binCode = map[string]byte{
 // wordDevs: word devices use decimal address in ASCII mode; bit devices use hex.
 var wordDevs = map[string]bool{
 	"D": true, "W": true, "R": true, "ZR": true,
-	"TN": true, "CN": true, "Z": true, "SW": true,
+	"TN": true, "CN": true, "Z": true, "SW": true, "SD": true,
 }
 
 const (

@@ -116,6 +116,8 @@ c, err := mc.New4EClient("192.168.0.1", 5007, mc.ModeBinary)
 | `B` | Bit | Link relay |
 | `F` | Bit | Annunciator |
 | `SB` | Bit | Link special relay |
+| `SM` | Bit | Special relay |
+| `SD` | Word | Special register |
 
 Device names are case-insensitive (`"d"` and `"D"` both work).
 
