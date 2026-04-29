@@ -27,6 +27,9 @@ func (c *Client3E) validateAddrs(devices []DeviceAddr) ([]string, error) {
 // RandomRead reads word (2-byte) and dword (4-byte) values from multiple
 // devices in a single request (command 0x0403).
 func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, error) {
+	if len(words) > 255 || len(dwords) > 255 {
+		return nil, nil, fmt.Errorf("device count must be <= 255")
+	}
 	wDevs, err := c.validateAddrs(words)
 	if err != nil {
 		return nil, nil, err
@@ -34,9 +37,6 @@ func (c *Client3E) RandomRead(words, dwords []DeviceAddr) ([]uint16, []uint32, e
 	dDevs, err := c.validateAddrs(dwords)
 	if err != nil {
 		return nil, nil, err
-	}
-	if len(words) > 255 || len(dwords) > 255 {
-		return nil, nil, fmt.Errorf("device count must be <= 255")
 	}
 	if c.mode == ModeBinary {
 		body := make([]byte, 0, 2+4*(len(words)+len(dwords)))

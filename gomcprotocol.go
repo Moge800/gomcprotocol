@@ -60,7 +60,9 @@ func (c *Client3E) Connect() error {
 	if err != nil {
 		return &MCProtocolConnectionError{msg: "connect: " + err.Error()}
 	}
+	c.mu.Lock()
 	c.conn = conn
+	c.mu.Unlock()
 	return nil
 }
 
@@ -193,11 +195,14 @@ func (c *Client3E) WriteWords(device string, start int, values []uint16) error {
 		_, err = chkBin(resp)
 		return err
 	}
-	body := addrAsc(dev, start) + fmt.Sprintf("%04X", len(values))
+	prefix := addrAsc(dev, start) + fmt.Sprintf("%04X", len(values))
+	var sb strings.Builder
+	sb.Grow(len(prefix) + len(values)*4)
+	sb.WriteString(prefix)
 	for _, v := range values {
-		body += fmt.Sprintf("%04X", v)
+		sb.WriteString(fmt.Sprintf("%04X", v))
 	}
-	resp, err := c.sendAsc(buildAsc(c.timer, cmdWrite, subcWord, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, cmdWrite, subcWord, sb.String()))
 	if err != nil {
 		return err
 	}
@@ -278,15 +283,18 @@ func (c *Client3E) WriteBits(device string, start int, values []bool) error {
 		_, err = chkBin(resp)
 		return err
 	}
-	body := addrAsc(dev, start) + fmt.Sprintf("%04X", len(values))
+	prefix := addrAsc(dev, start) + fmt.Sprintf("%04X", len(values))
+	var sb strings.Builder
+	sb.Grow(len(prefix) + len(values))
+	sb.WriteString(prefix)
 	for _, v := range values {
 		if v {
-			body += "1"
+			sb.WriteByte('1')
 		} else {
-			body += "0"
+			sb.WriteByte('0')
 		}
 	}
-	resp, err := c.sendAsc(buildAsc(c.timer, cmdWrite, subcBit, body))
+	resp, err := c.sendAsc(buildAsc(c.timer, cmdWrite, subcBit, sb.String()))
 	if err != nil {
 		return err
 	}
