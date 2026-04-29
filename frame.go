@@ -89,6 +89,8 @@ func chkAsc(data string) (string, error) {
 }
 
 // xferBinUDP sends a binary frame over UDP and reads the response datagram.
+// 4096 bytes is sufficient for any valid SLMP response given protocol limits
+// (max ~1930 bytes for a 960-word binary read).
 func xferBinUDP(conn net.Conn, frame []byte) ([]byte, error) {
 	if _, err := conn.Write(frame); err != nil {
 		return nil, connErr("send: " + err.Error())
@@ -102,6 +104,8 @@ func xferBinUDP(conn net.Conn, frame []byte) ([]byte, error) {
 }
 
 // xferAscUDP sends an ASCII frame over UDP and reads the response datagram.
+// 4096 bytes is sufficient for any valid SLMP response given protocol limits
+// (max ~3860 chars for a 960-word ASCII read).
 func xferAscUDP(conn net.Conn, frame string) (string, error) {
 	if _, err := conn.Write([]byte(frame)); err != nil {
 		return "", connErr("send: " + err.Error())

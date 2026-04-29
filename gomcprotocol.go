@@ -96,6 +96,14 @@ func (c *Client3E) sendAsc(frame string) (string, error) {
 	return xferAsc(c.conn, frame)
 }
 
+// SetTimeout sets the per-request I/O deadline and the connect timeout.
+// Default is 5 seconds.
+func (c *Client3E) SetTimeout(d time.Duration) {
+	c.mu.Lock()
+	c.timeout = d
+	c.mu.Unlock()
+}
+
 // Close closes the connection.
 func (c *Client3E) Close() error {
 	c.mu.Lock()
