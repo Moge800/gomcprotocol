@@ -17,6 +17,10 @@
 go get github.com/moge800/gomcprotocol
 ```
 
+```go
+import "github.com/moge800/gomcprotocol"
+```
+
 ## クイックスタート
 
 ### 3E フレーム（TCP）

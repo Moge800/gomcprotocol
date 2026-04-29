@@ -17,6 +17,10 @@ A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP)
 go get github.com/moge800/gomcprotocol
 ```
 
+```go
+import "github.com/moge800/gomcprotocol"
+```
+
 ## Quick Start
 
 ### 3E frame (TCP)
