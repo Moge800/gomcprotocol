@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 )
 
 // ── mock server ───────────────────────────────────────────────────────────────
@@ -570,5 +572,45 @@ func TestNew3EClientUDPInvalidMode(t *testing.T) {
 	_, err := New3EClientUDP("127.0.0.1", 1025, Mode(99))
 	if err == nil {
 		t.Fatal("expected error for invalid mode")
+	}
+}
+
+func TestSetTimeout(t *testing.T) {
+	// Start a server that reads the request but never replies and keeps the
+	// connection open, so the client must time out via deadline (not EOF).
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 512)
+		conn.Read(buf) // consume the request
+		<-done         // hold connection open until test exits
+	}()
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ := strconv.Atoi(p)
+	c := connect(t, h, port, ModeBinary)
+	defer c.Close()
+
+	c.SetTimeout(50 * time.Millisecond)
+	start := time.Now()
+	_, err = c.ReadWords("D", 0, 1)
+	elapsed := time.Since(start)
+	if _, ok := err.(*MCProtocolConnectionError); !ok {
+		t.Errorf("expected MCProtocolConnectionError on timeout, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
+		t.Errorf("expected timeout/deadline error, got: %v", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("timeout took too long: %v (expected ~50ms)", elapsed)
 	}
 }

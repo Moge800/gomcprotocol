@@ -56,7 +56,10 @@ func (c *Client3E) Connect() error {
 	if c.isUDP {
 		proto = "udp"
 	}
-	conn, err := net.DialTimeout(proto, fmt.Sprintf("%s:%d", c.host, c.port), c.timeout)
+	c.mu.Lock()
+	timeout := c.timeout
+	c.mu.Unlock()
+	conn, err := net.DialTimeout(proto, fmt.Sprintf("%s:%d", c.host, c.port), timeout)
 	if err != nil {
 		return &MCProtocolConnectionError{msg: "connect: " + err.Error()}
 	}
@@ -74,7 +77,7 @@ func (c *Client3E) sendBin(frame []byte) ([]byte, error) {
 	if c.conn == nil {
 		return nil, connErr("not connected")
 	}
-	c.conn.SetDeadline(time.Now().Add(c.timeout))
+	c.applyDeadline()
 	if c.isUDP {
 		return xferBinUDP(c.conn, frame)
 	}
@@ -89,11 +92,31 @@ func (c *Client3E) sendAsc(frame string) (string, error) {
 	if c.conn == nil {
 		return "", connErr("not connected")
 	}
-	c.conn.SetDeadline(time.Now().Add(c.timeout))
+	c.applyDeadline()
 	if c.isUDP {
 		return xferAscUDP(c.conn, frame)
 	}
 	return xferAsc(c.conn, frame)
+}
+
+// SetTimeout sets the per-request I/O deadline and the connect timeout.
+// A value of 0 or less disables both the per-request deadline and the
+// connect timeout (Connect will block until the OS times out).
+// Default is 5 seconds.
+func (c *Client3E) SetTimeout(d time.Duration) {
+	c.mu.Lock()
+	c.timeout = d
+	c.mu.Unlock()
+}
+
+// applyDeadline sets or clears the connection deadline.
+// Must be called with c.mu held.
+func (c *Client3E) applyDeadline() {
+	if c.timeout > 0 {
+		c.conn.SetDeadline(time.Now().Add(c.timeout))
+	} else {
+		c.conn.SetDeadline(time.Time{})
+	}
 }
 
 // Close closes the connection.

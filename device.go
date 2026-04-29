@@ -4,8 +4,8 @@ package gomcprotocol
 type Mode int
 
 const (
-	ModeBinary Mode = iota
-	ModeASCII
+	ModeBinary Mode = iota // binary (3E/4E) framing
+	ModeASCII              // ASCII (3E/4E) framing
 )
 
 // Binary device codes (iQ-R / Q series).

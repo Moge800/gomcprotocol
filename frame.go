@@ -89,6 +89,8 @@ func chkAsc(data string) (string, error) {
 }
 
 // xferBinUDP sends a binary frame over UDP and reads the response datagram.
+// The 4096-byte buffer handles typical responses; callers should prefer TCP
+// for large reads whose response could exceed this size.
 func xferBinUDP(conn net.Conn, frame []byte) ([]byte, error) {
 	if _, err := conn.Write(frame); err != nil {
 		return nil, connErr("send: " + err.Error())
@@ -102,6 +104,8 @@ func xferBinUDP(conn net.Conn, frame []byte) ([]byte, error) {
 }
 
 // xferAscUDP sends an ASCII frame over UDP and reads the response datagram.
+// The 4096-byte buffer handles typical responses; callers should prefer TCP
+// for large reads whose response could exceed this size.
 func xferAscUDP(conn net.Conn, frame string) (string, error) {
 	if _, err := conn.Write([]byte(frame)); err != nil {
 		return "", connErr("send: " + err.Error())
