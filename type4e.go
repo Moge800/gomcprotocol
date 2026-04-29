@@ -55,7 +55,8 @@ func (c *Client4E) Connect() error {
 }
 
 // SetTimeout sets the per-request I/O deadline and the connect timeout.
-// A value of 0 or less disables per-request deadlines entirely.
+// A value of 0 or less disables both the per-request deadline and the
+// connect timeout (Connect will block until the OS times out).
 // Default is 5 seconds.
 func (c *Client4E) SetTimeout(d time.Duration) {
 	c.mu.Lock()
