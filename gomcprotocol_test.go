@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -605,6 +606,9 @@ func TestSetTimeout(t *testing.T) {
 	elapsed := time.Since(start)
 	if _, ok := err.(*MCProtocolConnectionError); !ok {
 		t.Errorf("expected MCProtocolConnectionError on timeout, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline") {
+		t.Errorf("expected timeout/deadline error, got: %v", err)
 	}
 	if elapsed > 500*time.Millisecond {
 		t.Errorf("timeout took too long: %v (expected ~50ms)", elapsed)
