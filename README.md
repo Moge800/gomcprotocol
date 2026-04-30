@@ -1,5 +1,7 @@
 # gomcprotocol
 
+[日本語版はこちら](./README_jp.md)
+
 A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP).
 
 ## Features

@@ -1,5 +1,7 @@
 # gomcprotocol
 
+[English version](./README.md)
+
 三菱電機 PLC と MC プロトコル（SLMP）で通信するための Go ライブラリです。
 
 ## 機能
