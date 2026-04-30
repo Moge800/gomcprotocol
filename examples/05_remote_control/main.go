@@ -1,14 +1,32 @@
 // 05_remote_control: PLCのリモート操作（停止・ラッチクリア・起動）サンプル。
-// 実行前に対象PLCの安全を確認すること。
+//
+// !! 警告 !!
+// このプログラムを実行すると接続先の PLC が停止します。
+// 設備・装置が動作中の場合は絶対に実行しないでください。
+// 実行前に安全を確認し、"yes" と入力して続行してください。
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 	"time"
+
 	mc "github.com/moge800/gomcprotocol"
 )
 
 func main() {
+	fmt.Println("!! 警告 !! このプログラムは PLC を停止させます。")
+	fmt.Print("続行しますか？ (yes/no): ")
+
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	if strings.TrimSpace(scanner.Text()) != "yes" {
+		fmt.Println("中止しました。")
+		return
+	}
+
 	c, err := mc.New3EClient("192.168.0.1", 5007, mc.ModeBinary)
 	if err != nil {
 		panic(err)

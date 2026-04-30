@@ -43,6 +43,9 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	prev := make([]uint16, len(monitored))
 	var c *mc.Client3E
 
@@ -56,7 +59,7 @@ func main() {
 				c.Close()
 			}
 			return
-		default:
+		case <-ticker.C:
 		}
 
 		// 未接続なら接続を試みる
@@ -65,10 +68,11 @@ func main() {
 			c, err = connect()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "接続失敗: %v — 3秒後に再試行\n", err)
-				time.Sleep(3 * time.Second)
+				ticker.Reset(3 * time.Second)
 				continue
 			}
 			fmt.Println("接続しました")
+			ticker.Reset(interval)
 		}
 
 		// ランダムリードで全デバイスを一括取得
@@ -79,9 +83,10 @@ func main() {
 				fmt.Fprintf(os.Stderr, "通信エラー: %v — 再接続します\n", err)
 				c.Close()
 				c = nil
-				continue
+			} else {
+				fmt.Fprintf(os.Stderr, "PLCエラー: %v\n", err)
 			}
-			fmt.Fprintf(os.Stderr, "PLCエラー: %v\n", err)
+			continue
 		}
 
 		// 変化があったデバイスのみ表示
@@ -95,7 +100,5 @@ func main() {
 				prev[i] = words[i]
 			}
 		}
-
-		time.Sleep(interval)
 	}
 }
