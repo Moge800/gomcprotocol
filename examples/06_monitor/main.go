@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	host     = "192.168.0.1"
-	port     = 5007
-	interval = 500 * time.Millisecond
+	host        = "192.168.0.1"
+	port        = 5007
+	interval    = 500 * time.Millisecond
+	retryDelay  = 3 * time.Second
 )
 
 // monitored はポーリング対象のワードデバイス一覧。
@@ -37,6 +38,16 @@ func connect() (*mc.Client3E, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// waitOrQuit は d の間待機する。quit シグナルを受けたら false を返す。
+func waitOrQuit(quit <-chan os.Signal, d time.Duration) bool {
+	select {
+	case <-quit:
+		return false
+	case <-time.After(d):
+		return true
+	}
 }
 
 func main() {
@@ -67,24 +78,30 @@ func main() {
 			var err error
 			c, err = connect()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "接続失敗: %v — 3秒後に再試行\n", err)
-				ticker.Reset(3 * time.Second)
+				fmt.Fprintf(os.Stderr, "接続失敗: %v — %v 後に再試行\n", err, retryDelay)
+				if !waitOrQuit(quit, retryDelay) {
+					fmt.Println("\n終了")
+					return
+				}
 				continue
 			}
 			fmt.Println("接続しました")
-			ticker.Reset(interval)
 		}
 
 		// ランダムリードで全デバイスを一括取得
 		words, _, err := c.RandomRead(monitored, nil)
 		if err != nil {
 			var connErr *mc.MCProtocolConnectionError
-			if errors.As(err, &connErr) {
+			var plcErr *mc.MCProtocolError
+			switch {
+			case errors.As(err, &connErr):
 				fmt.Fprintf(os.Stderr, "通信エラー: %v — 再接続します\n", err)
 				c.Close()
 				c = nil
-			} else {
-				fmt.Fprintf(os.Stderr, "PLCエラー: %v\n", err)
+			case errors.As(err, &plcErr):
+				fmt.Fprintf(os.Stderr, "PLC エラー (end code 0x%04X): %v\n", plcErr.EndCode, err)
+			default:
+				fmt.Fprintf(os.Stderr, "クライアントエラー: %v\n", err)
 			}
 			continue
 		}
