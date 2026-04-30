@@ -171,19 +171,6 @@ if err != nil {
 PLC 側で Ethernet 通信および SLMP（MC プロトコル）を有効にしてください。  
 Q シリーズ / iQ-R シリーズのデフォルトポートは通常 `5007` です。
 
-## サンプルコード
-
-実行可能なサンプルが [`examples/`](./examples/) ディレクトリにあります：
-
-| ディレクトリ | 内容 |
-|-------------|------|
-| [`01_basic_read`](./examples/01_basic_read/main.go) | ワードデバイスの読み取り（最小構成） |
-| [`02_basic_write`](./examples/02_basic_write/main.go) | ワードの書き込みと読み返し |
-| [`03_bit_operations`](./examples/03_bit_operations/main.go) | ビットデバイス（X, M, Y）の読み書き |
-| [`04_random_access`](./examples/04_random_access/main.go) | 複数デバイスの一括読み書き |
-| [`05_remote_control`](./examples/05_remote_control/main.go) | 停止→ラッチクリア→起動のシーケンス |
-| [`06_monitor`](./examples/06_monitor/main.go) | 定期ポーリング＋変化検出＋自動再接続 |
-
 ## ライセンス
 
 MIT
