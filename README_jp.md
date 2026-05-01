@@ -15,7 +15,7 @@
 
 ## REST Wrapper API
 
-このライブラリを REST API として利用できる wrapper が [Moge800/gomc-rest](https://github.com/Moge800/gomc-rest) にあります。  
+このライブラリを REST API として利用できる wrapper が [Moge800/gomc-rest](https://github.com/Moge800/gomc-rest) にあります。
 他のアプリケーションやサービスから HTTP 経由で MC プロトコル通信を扱いたい場合に利用できます。
 
 ## インストール

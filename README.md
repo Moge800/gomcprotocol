@@ -15,7 +15,7 @@ A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP)
 
 ## REST Wrapper API
 
-A REST API wrapper for this library is available at [Moge800/gomc-rest](https://github.com/Moge800/gomc-rest).  
+A REST API wrapper for this library is available at [Moge800/gomc-rest](https://github.com/Moge800/gomc-rest).
 Use it when you want to expose MC Protocol communication over HTTP from another application or service.
 
 ## Installation
