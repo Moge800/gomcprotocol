@@ -99,7 +99,7 @@ c, err := mc.New4EClient("192.168.0.1", 5007, mc.ModeBinary)
 | `RemoteLatchClear()` | Clear latch (PLC must be stopped) |
 | `RemoteReset()` | Reset PLC (connection will close) |
 
-`Client4E` provides the same methods as `Client3E` (except remote commands), created via `New4EClient`.
+`Client4E` provides the same methods as `Client3E`, created via `New4EClient`.
 
 Requests issued concurrently on the same client instance are serialized internally, so only one MC Protocol request/response exchange is active on that connection at a time.
 

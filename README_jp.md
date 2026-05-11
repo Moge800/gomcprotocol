@@ -99,7 +99,7 @@ c, err := mc.New4EClient("192.168.0.1", 5007, mc.ModeBinary)
 | `RemoteLatchClear()` | ラッチクリア（STOP 状態で実行） |
 | `RemoteReset()` | PLC リモートリセット（接続クローズ） |
 
-`Client4E` も `Client3E` と同じメソッドを提供します（リモートコマンドを除く）。`New4EClient` で作成してください。
+`Client4E` も `Client3E` と同じメソッドを提供します。`New4EClient` で作成してください。
 
 同一クライアントインスタンスに対して同時に呼び出されたリクエストは内部で直列化されるため、その接続上で同時に実行される MC プロトコルのリクエスト／レスポンス交換は常に 1 件です。
 
