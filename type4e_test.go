@@ -3,6 +3,7 @@ package gomcprotocol
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -72,6 +73,24 @@ func connect4E(t *testing.T, host string, port int, mode Mode) *Client4E {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func read4EBinRequest(conn net.Conn) (uint16, error) {
+	header := make([]byte, 13)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return 0, err
+	}
+	dataLen := int(binary.LittleEndian.Uint16(header[11:]))
+	if dataLen > maxTestRequestDataLen {
+		return 0, fmt.Errorf("request payload too large: %d > %d", dataLen, maxTestRequestDataLen)
+	}
+	_, err := io.CopyN(io.Discard, conn, int64(dataLen))
+	return binary.LittleEndian.Uint16(header[2:]), err
+}
+
+func readWords4EWithEnterSignal(c *Client4E, entered chan<- struct{}, device string, addr, count int) ([]uint16, error) {
+	close(entered)
+	return c.ReadWords(device, addr, count)
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -492,6 +511,132 @@ func TestSerialNumberWrapAround(t *testing.T) {
 	s := c.nextSerial()
 	if s != 1 {
 		t.Errorf("expected wrap to 1, got %d", s)
+	}
+}
+
+func TestClient4ESerializesConcurrentRequests(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	firstRequest := make(chan struct{})
+	secondReady := make(chan struct{})
+	startSecond := make(chan struct{})
+	secondCallEntered := make(chan struct{})
+	serverErr := make(chan error, 1)
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			serverErr <- err
+			return
+		}
+		defer conn.Close()
+
+		firstSerial, err := read4EBinRequest(conn)
+		if err != nil {
+			serverErr <- err
+			return
+		}
+		close(firstRequest)
+
+		select {
+		case <-secondCallEntered:
+		case <-time.After(time.Second):
+			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
+			return
+		}
+		if err := waitForStackContains(time.Second, "readWords4EWithEnterSignal", "(*Client4E).sendBin"); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := assertNoRequestBytes(conn, 75*time.Millisecond); err != nil {
+			serverErr <- err
+			return
+		}
+
+		if _, err := conn.Write(bin4EResp(firstSerial, 0, []byte{0x01, 0x00})); err != nil {
+			serverErr <- err
+			return
+		}
+		secondSerial, err := read4EBinRequest(conn)
+		if err != nil {
+			serverErr <- err
+			return
+		}
+		_, err = conn.Write(bin4EResp(secondSerial, 0, []byte{0x02, 0x00}))
+		serverErr <- err
+	}()
+
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ := strconv.Atoi(p)
+	c := connect4E(t, h, port, ModeBinary)
+	defer c.Close()
+
+	firstDone := make(chan error, 1)
+	go func() {
+		got, err := c.ReadWords("D", 0, 1)
+		if err != nil {
+			firstDone <- err
+			return
+		}
+		if len(got) != 1 || got[0] != 1 {
+			firstDone <- fmt.Errorf("first ReadWords = %v, want [1]", got)
+			return
+		}
+		firstDone <- nil
+	}()
+
+	select {
+	case <-firstRequest:
+	case err := <-serverErr:
+		t.Fatalf("server failed before first request completed: %v", err)
+	case err := <-firstDone:
+		t.Fatalf("first request finished before server observed it: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first request")
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		close(secondReady)
+		<-startSecond
+		got, err := readWords4EWithEnterSignal(c, secondCallEntered, "D", 1, 1)
+		if err != nil {
+			secondDone <- err
+			return
+		}
+		if len(got) != 1 || got[0] != 2 {
+			secondDone <- fmt.Errorf("second ReadWords = %v, want [2]", got)
+			return
+		}
+		secondDone <- nil
+	}()
+
+	select {
+	case <-secondReady:
+		close(startSecond)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second goroutine to become ready")
+	}
+
+	for _, step := range []struct {
+		name string
+		ch   <-chan error
+	}{
+		{"first read", firstDone},
+		{"second read", secondDone},
+		{"server", serverErr},
+	} {
+		select {
+		case err := <-step.ch:
+			if err != nil {
+				t.Fatalf("%s failed: %v", step.name, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for %s", step.name)
+		}
 	}
 }
 

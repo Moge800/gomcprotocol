@@ -4,11 +4,18 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+)
+
+const (
+	testStackSnapshotBufSize = 256 << 10
+	testStackPollInterval    = 100 * time.Microsecond
 )
 
 // ── mock server ───────────────────────────────────────────────────────────────
@@ -66,6 +73,45 @@ func connect(t *testing.T, host string, port int, mode Mode) *Client3E {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func read3EBinRequest(conn net.Conn) error {
+	header := make([]byte, 9)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return err
+	}
+	dataLen := int(binary.LittleEndian.Uint16(header[7:]))
+	if dataLen > maxTestRequestDataLen {
+		return fmt.Errorf("request payload too large: %d > %d", dataLen, maxTestRequestDataLen)
+	}
+	_, err := io.CopyN(io.Discard, conn, int64(dataLen))
+	return err
+}
+
+func waitForStackContains(timeout time.Duration, needles ...string) error {
+	deadline := time.Now().Add(timeout)
+	buf := make([]byte, testStackSnapshotBufSize)
+	for time.Now().Before(deadline) {
+		n := runtime.Stack(buf, true)
+		stack := string(buf[:n])
+		found := true
+		for _, needle := range needles {
+			if !strings.Contains(stack, needle) {
+				found = false
+				break
+			}
+		}
+		if found {
+			return nil
+		}
+		time.Sleep(testStackPollInterval)
+	}
+	return fmt.Errorf("timed out waiting for stack to contain %v", needles)
+}
+
+func readWords3EWithEnterSignal(c *Client3E, entered chan<- struct{}, device string, addr, count int) ([]uint16, error) {
+	close(entered)
+	return c.ReadWords(device, addr, count)
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -572,6 +618,130 @@ func TestNew3EClientUDPInvalidMode(t *testing.T) {
 	_, err := New3EClientUDP("127.0.0.1", 1025, Mode(99))
 	if err == nil {
 		t.Fatal("expected error for invalid mode")
+	}
+}
+
+func TestClient3ESerializesConcurrentRequests(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	firstRequest := make(chan struct{})
+	secondReady := make(chan struct{})
+	startSecond := make(chan struct{})
+	secondCallEntered := make(chan struct{})
+	serverErr := make(chan error, 1)
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			serverErr <- err
+			return
+		}
+		defer conn.Close()
+
+		if err := read3EBinRequest(conn); err != nil {
+			serverErr <- err
+			return
+		}
+		close(firstRequest)
+
+		select {
+		case <-secondCallEntered:
+		case <-time.After(time.Second):
+			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
+			return
+		}
+		if err := waitForStackContains(time.Second, "readWords3EWithEnterSignal", "(*Client3E).sendBin"); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := assertNoRequestBytes(conn, 75*time.Millisecond); err != nil {
+			serverErr <- err
+			return
+		}
+
+		if _, err := conn.Write(binResp(0, []byte{0x01, 0x00})); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := read3EBinRequest(conn); err != nil {
+			serverErr <- err
+			return
+		}
+		_, err = conn.Write(binResp(0, []byte{0x02, 0x00}))
+		serverErr <- err
+	}()
+
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ := strconv.Atoi(p)
+	c := connect(t, h, port, ModeBinary)
+	defer c.Close()
+
+	firstDone := make(chan error, 1)
+	go func() {
+		got, err := c.ReadWords("D", 0, 1)
+		if err != nil {
+			firstDone <- err
+			return
+		}
+		if len(got) != 1 || got[0] != 1 {
+			firstDone <- fmt.Errorf("first ReadWords = %v, want [1]", got)
+			return
+		}
+		firstDone <- nil
+	}()
+
+	select {
+	case <-firstRequest:
+	case err := <-serverErr:
+		t.Fatalf("server failed before first request completed: %v", err)
+	case err := <-firstDone:
+		t.Fatalf("first request finished before server observed it: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first request")
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		close(secondReady)
+		<-startSecond
+		got, err := readWords3EWithEnterSignal(c, secondCallEntered, "D", 1, 1)
+		if err != nil {
+			secondDone <- err
+			return
+		}
+		if len(got) != 1 || got[0] != 2 {
+			secondDone <- fmt.Errorf("second ReadWords = %v, want [2]", got)
+			return
+		}
+		secondDone <- nil
+	}()
+
+	select {
+	case <-secondReady:
+		close(startSecond)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second goroutine to become ready")
+	}
+
+	for _, step := range []struct {
+		name string
+		ch   <-chan error
+	}{
+		{"first read", firstDone},
+		{"second read", secondDone},
+		{"server", serverErr},
+	} {
+		select {
+		case err := <-step.ch:
+			if err != nil {
+				t.Fatalf("%s failed: %v", step.name, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for %s", step.name)
+		}
 	}
 }
 
