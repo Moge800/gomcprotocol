@@ -688,14 +688,21 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 		secondDone <- nil
 	}()
 
-	for name, ch := range map[string]<-chan error{"first read": firstDone, "second read": secondDone, "server": serverErr} {
+	for _, step := range []struct {
+		name string
+		ch   <-chan error
+	}{
+		{"first read", firstDone},
+		{"second read", secondDone},
+		{"server", serverErr},
+	} {
 		select {
-		case err := <-ch:
+		case err := <-step.ch:
 			if err != nil {
-				t.Fatalf("%s failed: %v", name, err)
+				t.Fatalf("%s failed: %v", step.name, err)
 			}
 		case <-time.After(time.Second):
-			t.Fatalf("timed out waiting for %s", name)
+			t.Fatalf("timed out waiting for %s", step.name)
 		}
 	}
 }
