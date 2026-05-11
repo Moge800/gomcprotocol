@@ -11,7 +11,7 @@ A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP)
 - Batch read/write: words and bits
 - Random read/write: multiple devices in a single request
 - Remote control: Run, Stop, Pause, Latch Clear, Reset
-- Goroutine-safe: requests are serialized internally
+- Goroutine-safe: requests on the same client instance are serialized internally
 
 ## REST Wrapper API
 
@@ -100,6 +100,8 @@ c, err := mc.New4EClient("192.168.0.1", 5007, mc.ModeBinary)
 | `RemoteReset()` | Reset PLC (connection will close) |
 
 `Client4E` provides the same methods as `Client3E` (except remote commands), created via `New4EClient`.
+
+Requests issued concurrently on the same client instance are serialized internally, so only one MC Protocol request/response exchange is active on that connection at a time.
 
 ### Modes
 

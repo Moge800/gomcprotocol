@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -66,6 +67,16 @@ func connect(t *testing.T, host string, port int, mode Mode) *Client3E {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func read3EBinRequest(conn net.Conn) error {
+	header := make([]byte, 9)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return err
+	}
+	dataLen := int(binary.LittleEndian.Uint16(header[7:]))
+	_, err := io.ReadFull(conn, make([]byte, dataLen))
+	return err
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -572,6 +583,110 @@ func TestNew3EClientUDPInvalidMode(t *testing.T) {
 	_, err := New3EClientUDP("127.0.0.1", 1025, Mode(99))
 	if err == nil {
 		t.Fatal("expected error for invalid mode")
+	}
+}
+
+func TestClient3ESerializesConcurrentRequests(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	firstRequest := make(chan struct{})
+	serverErr := make(chan error, 1)
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			serverErr <- err
+			return
+		}
+		defer conn.Close()
+
+		if err := read3EBinRequest(conn); err != nil {
+			serverErr <- err
+			return
+		}
+		close(firstRequest)
+
+		if err := conn.SetReadDeadline(time.Now().Add(75 * time.Millisecond)); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := read3EBinRequest(conn); err == nil {
+			serverErr <- fmt.Errorf("second request arrived before first response")
+			return
+		} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+			serverErr <- err
+			return
+		}
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			serverErr <- err
+			return
+		}
+
+		if _, err := conn.Write(binResp(0, []byte{0x01, 0x00})); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := read3EBinRequest(conn); err != nil {
+			serverErr <- err
+			return
+		}
+		_, err = conn.Write(binResp(0, []byte{0x02, 0x00}))
+		serverErr <- err
+	}()
+
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ := strconv.Atoi(p)
+	c := connect(t, h, port, ModeBinary)
+	defer c.Close()
+
+	firstDone := make(chan error, 1)
+	go func() {
+		got, err := c.ReadWords("D", 0, 1)
+		if err != nil {
+			firstDone <- err
+			return
+		}
+		if len(got) != 1 || got[0] != 1 {
+			firstDone <- fmt.Errorf("first ReadWords = %v, want [1]", got)
+			return
+		}
+		firstDone <- nil
+	}()
+
+	select {
+	case <-firstRequest:
+	case err := <-firstDone:
+		t.Fatalf("first request finished before server observed it: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first request")
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		got, err := c.ReadWords("D", 1, 1)
+		if err != nil {
+			secondDone <- err
+			return
+		}
+		if len(got) != 1 || got[0] != 2 {
+			secondDone <- fmt.Errorf("second ReadWords = %v, want [2]", got)
+			return
+		}
+		secondDone <- nil
+	}()
+
+	for name, ch := range map[string]<-chan error{"first read": firstDone, "second read": secondDone, "server": serverErr} {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("%s failed: %v", name, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for %s", name)
+		}
 	}
 }
 
