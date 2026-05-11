@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+const (
+	testStackSnapshotBufSize = 256 << 10
+	testStackPollInterval    = 100 * time.Microsecond
+)
+
 // ── mock server ───────────────────────────────────────────────────────────────
 
 // mockServer starts a TCP listener, serves one request with resp, then closes.
@@ -85,7 +90,7 @@ func read3EBinRequest(conn net.Conn) error {
 
 func waitForStackContains(timeout time.Duration, needles ...string) error {
 	deadline := time.Now().Add(timeout)
-	buf := make([]byte, 1<<20)
+	buf := make([]byte, testStackSnapshotBufSize)
 	for time.Now().Before(deadline) {
 		n := runtime.Stack(buf, true)
 		stack := string(buf[:n])
@@ -99,7 +104,7 @@ func waitForStackContains(timeout time.Duration, needles ...string) error {
 		if found {
 			return nil
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(testStackPollInterval)
 	}
 	return fmt.Errorf("timed out waiting for stack to contain %v", needles)
 }

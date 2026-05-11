@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -92,27 +91,6 @@ func read4EBinRequest(conn net.Conn) (uint16, error) {
 func readWords4EWithEnterSignal(c *Client4E, entered chan<- struct{}, device string, addr, count int) ([]uint16, error) {
 	close(entered)
 	return c.ReadWords(device, addr, count)
-}
-
-func waitFor4EStackContains(timeout time.Duration, needles ...string) error {
-	deadline := time.Now().Add(timeout)
-	buf := make([]byte, 1<<20)
-	for time.Now().Before(deadline) {
-		n := runtime.Stack(buf, true)
-		stack := string(buf[:n])
-		found := true
-		for _, needle := range needles {
-			if !strings.Contains(stack, needle) {
-				found = false
-				break
-			}
-		}
-		if found {
-			return nil
-		}
-		time.Sleep(time.Millisecond)
-	}
-	return fmt.Errorf("timed out waiting for stack to contain %v", needles)
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -569,7 +547,7 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
 			return
 		}
-		if err := waitFor4EStackContains(time.Second, "readWords4EWithEnterSignal", "(*Client4E).sendBin"); err != nil {
+		if err := waitForStackContains(time.Second, "readWords4EWithEnterSignal", "(*Client4E).sendBin"); err != nil {
 			serverErr <- err
 			return
 		}
