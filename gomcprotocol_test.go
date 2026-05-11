@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-const maxTestRequestDataLen = 1024
-
 // ── mock server ───────────────────────────────────────────────────────────────
 
 // mockServer starts a TCP listener, serves one request with resp, then closes.
@@ -82,22 +80,6 @@ func read3EBinRequest(conn net.Conn) error {
 	}
 	_, err := io.CopyN(io.Discard, conn, int64(dataLen))
 	return err
-}
-
-func assertNoRequestBytes(conn net.Conn, wait time.Duration) error {
-	if err := conn.SetReadDeadline(time.Now().Add(wait)); err != nil {
-		return err
-	}
-	var b [1]byte
-	n, err := conn.Read(b[:])
-	clearErr := conn.SetReadDeadline(time.Time{})
-	if n > 0 || err == nil {
-		return fmt.Errorf("request byte arrived before first response")
-	}
-	if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
-		return err
-	}
-	return clearErr
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -615,7 +597,9 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 	defer l.Close()
 
 	firstRequest := make(chan struct{})
-	secondStarted := make(chan struct{})
+	secondReady := make(chan struct{})
+	startSecond := make(chan struct{})
+	secondCallEntered := make(chan struct{})
 	serverErr := make(chan error, 1)
 	go func() {
 		conn, err := l.Accept()
@@ -632,7 +616,7 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 		close(firstRequest)
 
 		select {
-		case <-secondStarted:
+		case <-secondCallEntered:
 		case <-time.After(time.Second):
 			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
 			return
@@ -685,7 +669,9 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 
 	secondDone := make(chan error, 1)
 	go func() {
-		close(secondStarted)
+		close(secondReady)
+		<-startSecond
+		close(secondCallEntered)
 		got, err := c.ReadWords("D", 1, 1)
 		if err != nil {
 			secondDone <- err
@@ -697,6 +683,13 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 		}
 		secondDone <- nil
 	}()
+
+	select {
+	case <-secondReady:
+		close(startSecond)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second goroutine to become ready")
+	}
 
 	for _, step := range []struct {
 		name string

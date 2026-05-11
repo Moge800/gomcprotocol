@@ -517,7 +517,9 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 	defer l.Close()
 
 	firstRequest := make(chan struct{})
-	secondStarted := make(chan struct{})
+	secondReady := make(chan struct{})
+	startSecond := make(chan struct{})
+	secondCallEntered := make(chan struct{})
 	serverErr := make(chan error, 1)
 	go func() {
 		conn, err := l.Accept()
@@ -535,7 +537,7 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 		close(firstRequest)
 
 		select {
-		case <-secondStarted:
+		case <-secondCallEntered:
 		case <-time.After(time.Second):
 			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
 			return
@@ -589,7 +591,9 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 
 	secondDone := make(chan error, 1)
 	go func() {
-		close(secondStarted)
+		close(secondReady)
+		<-startSecond
+		close(secondCallEntered)
 		got, err := c.ReadWords("D", 1, 1)
 		if err != nil {
 			secondDone <- err
@@ -601,6 +605,13 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 		}
 		secondDone <- nil
 	}()
+
+	select {
+	case <-secondReady:
+		close(startSecond)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second goroutine to become ready")
+	}
 
 	for _, step := range []struct {
 		name string
