@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -80,6 +81,32 @@ func read3EBinRequest(conn net.Conn) error {
 	}
 	_, err := io.CopyN(io.Discard, conn, int64(dataLen))
 	return err
+}
+
+func waitForStackContains(timeout time.Duration, needles ...string) error {
+	deadline := time.Now().Add(timeout)
+	buf := make([]byte, 1<<20)
+	for time.Now().Before(deadline) {
+		n := runtime.Stack(buf, true)
+		stack := string(buf[:n])
+		found := true
+		for _, needle := range needles {
+			if !strings.Contains(stack, needle) {
+				found = false
+				break
+			}
+		}
+		if found {
+			return nil
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return fmt.Errorf("timed out waiting for stack to contain %v", needles)
+}
+
+func readWords3EWithEnterSignal(c *Client3E, entered chan<- struct{}, device string, addr, count int) ([]uint16, error) {
+	close(entered)
+	return c.ReadWords(device, addr, count)
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -621,6 +648,10 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
 			return
 		}
+		if err := waitForStackContains(time.Second, "readWords3EWithEnterSignal", "(*Client3E).sendBin"); err != nil {
+			serverErr <- err
+			return
+		}
 		if err := assertNoRequestBytes(conn, 75*time.Millisecond); err != nil {
 			serverErr <- err
 			return
@@ -671,8 +702,7 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 	go func() {
 		close(secondReady)
 		<-startSecond
-		close(secondCallEntered)
-		got, err := c.ReadWords("D", 1, 1)
+		got, err := readWords3EWithEnterSignal(c, secondCallEntered, "D", 1, 1)
 		if err != nil {
 			secondDone <- err
 			return
