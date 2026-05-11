@@ -517,6 +517,7 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 	defer l.Close()
 
 	firstRequest := make(chan struct{})
+	secondStarted := make(chan struct{})
 	serverErr := make(chan error, 1)
 	go func() {
 		conn, err := l.Accept()
@@ -533,6 +534,12 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 		}
 		close(firstRequest)
 
+		select {
+		case <-secondStarted:
+		case <-time.After(time.Second):
+			serverErr <- fmt.Errorf("timed out waiting for second request attempt")
+			return
+		}
 		if err := assertNoRequestBytes(conn, 75*time.Millisecond); err != nil {
 			serverErr <- err
 			return
@@ -572,6 +579,8 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 
 	select {
 	case <-firstRequest:
+	case err := <-serverErr:
+		t.Fatalf("server failed before first request completed: %v", err)
 	case err := <-firstDone:
 		t.Fatalf("first request finished before server observed it: %v", err)
 	case <-time.After(time.Second):
@@ -580,6 +589,7 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 
 	secondDone := make(chan error, 1)
 	go func() {
+		close(secondStarted)
 		got, err := c.ReadWords("D", 1, 1)
 		if err != nil {
 			secondDone <- err
