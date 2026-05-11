@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const maxTestRequestDataLen = 1024
+
 // ── mock server ───────────────────────────────────────────────────────────────
 
 // mockServer starts a TCP listener, serves one request with resp, then closes.
@@ -75,8 +77,27 @@ func read3EBinRequest(conn net.Conn) error {
 		return err
 	}
 	dataLen := int(binary.LittleEndian.Uint16(header[7:]))
-	_, err := io.ReadFull(conn, make([]byte, dataLen))
+	if dataLen > maxTestRequestDataLen {
+		return fmt.Errorf("request payload too large: %d > %d", dataLen, maxTestRequestDataLen)
+	}
+	_, err := io.CopyN(io.Discard, conn, int64(dataLen))
 	return err
+}
+
+func assertNoRequestBytes(conn net.Conn, wait time.Duration) error {
+	if err := conn.SetReadDeadline(time.Now().Add(wait)); err != nil {
+		return err
+	}
+	var b [1]byte
+	n, err := conn.Read(b[:])
+	clearErr := conn.SetReadDeadline(time.Time{})
+	if n > 0 || err == nil {
+		return fmt.Errorf("request byte arrived before first response")
+	}
+	if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+		return err
+	}
+	return clearErr
 }
 
 // ── frame building ────────────────────────────────────────────────────────────
@@ -609,18 +630,7 @@ func TestClient3ESerializesConcurrentRequests(t *testing.T) {
 		}
 		close(firstRequest)
 
-		if err := conn.SetReadDeadline(time.Now().Add(75 * time.Millisecond)); err != nil {
-			serverErr <- err
-			return
-		}
-		if err := read3EBinRequest(conn); err == nil {
-			serverErr <- fmt.Errorf("second request arrived before first response")
-			return
-		} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
-			serverErr <- err
-			return
-		}
-		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		if err := assertNoRequestBytes(conn, 75*time.Millisecond); err != nil {
 			serverErr <- err
 			return
 		}

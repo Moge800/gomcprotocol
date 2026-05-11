@@ -81,7 +81,10 @@ func read4EBinRequest(conn net.Conn) (uint16, error) {
 		return 0, err
 	}
 	dataLen := int(binary.LittleEndian.Uint16(header[11:]))
-	_, err := io.ReadFull(conn, make([]byte, dataLen))
+	if dataLen > maxTestRequestDataLen {
+		return 0, fmt.Errorf("request payload too large: %d > %d", dataLen, maxTestRequestDataLen)
+	}
+	_, err := io.CopyN(io.Discard, conn, int64(dataLen))
 	return binary.LittleEndian.Uint16(header[2:]), err
 }
 
@@ -530,18 +533,7 @@ func TestClient4ESerializesConcurrentRequests(t *testing.T) {
 		}
 		close(firstRequest)
 
-		if err := conn.SetReadDeadline(time.Now().Add(75 * time.Millisecond)); err != nil {
-			serverErr <- err
-			return
-		}
-		if _, err := read4EBinRequest(conn); err == nil {
-			serverErr <- fmt.Errorf("second request arrived before first response")
-			return
-		} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
-			serverErr <- err
-			return
-		}
-		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		if err := assertNoRequestBytes(conn, 75*time.Millisecond); err != nil {
 			serverErr <- err
 			return
 		}
