@@ -120,14 +120,21 @@ Requests issued concurrently on the same client instance are serialized internal
 | `ZR` | Word | File register (extended) |
 | `SW` | Word | Link special register |
 | `TN` | Word | Timer current value |
+| `STN` | Word | Retentive timer current value |
 | `CN` | Word | Counter current value |
 | `Z` | Word | Index register |
 | `X` | Bit | Input |
 | `Y` | Bit | Output |
 | `M` | Bit | Internal relay |
 | `L` | Bit | Latch relay |
+| `V` | Bit | Edge relay |
+| `S` | Bit | Step relay |
+| `DX` | Bit | Direct access input |
+| `DY` | Bit | Direct access output |
 | `TC` | Bit | Timer coil |
 | `TS` | Bit | Timer contact |
+| `STC` | Bit | Retentive timer coil |
+| `STS` | Bit | Retentive timer contact |
 | `CC` | Bit | Counter coil |
 | `CS` | Bit | Counter contact |
 | `B` | Bit | Link relay |

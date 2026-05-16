@@ -250,6 +250,27 @@ func TestAddrBinTimerCounterBits(t *testing.T) {
 	}
 }
 
+func TestAddrBinAdditionalQLDevices(t *testing.T) {
+	tests := []struct {
+		device string
+		addr   int
+		want   []byte
+	}{
+		{device: "V", addr: 10, want: []byte{0x0A, 0x00, 0x00, 0x94}},
+		{device: "S", addr: 20, want: []byte{0x14, 0x00, 0x00, 0x98}},
+		{device: "DX", addr: 0x2A, want: []byte{0x2A, 0x00, 0x00, 0xA2}},
+		{device: "DY", addr: 0x2B, want: []byte{0x2B, 0x00, 0x00, 0xA3}},
+		{device: "STC", addr: 30, want: []byte{0x1E, 0x00, 0x00, 0xC6}},
+		{device: "STS", addr: 31, want: []byte{0x1F, 0x00, 0x00, 0xC7}},
+		{device: "STN", addr: 32, want: []byte{0x20, 0x00, 0x00, 0xC8}},
+	}
+	for _, tt := range tests {
+		if got := addrBin(tt.device, tt.addr); !bytes.Equal(got, tt.want) {
+			t.Errorf("addrBin(%q,%d) = %X, want %X", tt.device, tt.addr, got, tt.want)
+		}
+	}
+}
+
 func TestAddrAscWordDevice(t *testing.T) {
 	// Word device: decimal address, device name padded to 2 chars
 	if got, want := addrAsc("D", 100), "D 000100"; got != want {
@@ -258,9 +279,45 @@ func TestAddrAscWordDevice(t *testing.T) {
 }
 
 func TestAddrAscBitDevice(t *testing.T) {
-	// Bit device: hex address
-	if got, want := addrAsc("M", 255), "M 0000FF"; got != want {
+	// M uses decimal notation in the MC protocol device-code table.
+	if got, want := addrAsc("M", 255), "M 000255"; got != want {
 		t.Errorf("addrAsc(M,255) = %q, want %q", got, want)
+	}
+}
+
+func TestAddrAscDeviceNumberNotation(t *testing.T) {
+	tests := []struct {
+		device string
+		addr   int
+		want   string
+	}{
+		{device: "X", addr: 0x100, want: "X 000100"},
+		{device: "Y", addr: 0x101, want: "Y 000101"},
+		{device: "B", addr: 0x1F, want: "B 00001F"},
+		{device: "W", addr: 0x2A, want: "W 00002A"},
+		{device: "SB", addr: 0x3B, want: "SB00003B"},
+		{device: "SW", addr: 0x3C, want: "SW00003C"},
+		{device: "ZR", addr: 0x123, want: "ZR000123"},
+		{device: "DX", addr: 0x2A, want: "DX00002A"},
+		{device: "DY", addr: 0x2B, want: "DY00002B"},
+		{device: "M", addr: 100, want: "M 000100"},
+		{device: "L", addr: 101, want: "L 000101"},
+		{device: "F", addr: 102, want: "F 000102"},
+		{device: "V", addr: 103, want: "V 000103"},
+		{device: "S", addr: 104, want: "S 000104"},
+		{device: "SM", addr: 105, want: "SM000105"},
+		{device: "SD", addr: 106, want: "SD000106"},
+		{device: "D", addr: 107, want: "D 000107"},
+		{device: "R", addr: 108, want: "R 000108"},
+		{device: "Z", addr: 109, want: "Z 000109"},
+		{device: "STC", addr: 110, want: "SC000110"},
+		{device: "STS", addr: 111, want: "SS000111"},
+		{device: "STN", addr: 112, want: "SN000112"},
+	}
+	for _, tt := range tests {
+		if got := addrAsc(tt.device, tt.addr); got != tt.want {
+			t.Errorf("addrAsc(%q,%d) = %q, want %q", tt.device, tt.addr, got, tt.want)
+		}
 	}
 }
 
@@ -536,6 +593,8 @@ func TestReadBitsTimerCounterBitRequests(t *testing.T) {
 	}{
 		{name: "timer coil", device: "TC", start: 0, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x01, 0x00}},
 		{name: "timer contact", device: "TS", start: 0, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0xC1, 0x01, 0x00}},
+		{name: "retentive timer coil", device: "STC", start: 10, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x0A, 0x00, 0x00, 0xC6, 0x01, 0x00}},
+		{name: "retentive timer contact", device: "STS", start: 10, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x0A, 0x00, 0x00, 0xC7, 0x01, 0x00}},
 		{name: "counter coil", device: "CC", start: 5, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x05, 0x00, 0x00, 0xC3, 0x01, 0x00}},
 		{name: "counter contact", device: "CS", start: 5, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x05, 0x00, 0x00, 0xC4, 0x01, 0x00}},
 	}
@@ -565,6 +624,8 @@ func TestReadBitsTimerCounterBitRequests(t *testing.T) {
 	}{
 		{name: "timer coil", device: "TC", start: 0, want: "001004010001TC0000000001"},
 		{name: "timer contact", device: "TS", start: 0, want: "001004010001TS0000000001"},
+		{name: "retentive timer coil", device: "STC", start: 10, want: "001004010001SC0000100001"},
+		{name: "retentive timer contact", device: "STS", start: 10, want: "001004010001SS0000100001"},
 		{name: "counter coil", device: "CC", start: 5, want: "001004010001CC0000050001"},
 		{name: "counter contact", device: "CS", start: 5, want: "001004010001CS0000050001"},
 	}
@@ -584,6 +645,38 @@ func TestReadBitsTimerCounterBitRequests(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestReadWordsRetentiveTimerAsciiRequest(t *testing.T) {
+	host, port, done := mockRequestServer(t, ModeASCII, ascResp(0, "0001"), func(request []byte) error {
+		if got, want := string(request[18:]), "001004010000SN0000120001"; got != want {
+			return fmt.Errorf("ASCII payload = %q, want %q", got, want)
+		}
+		return nil
+	})
+	defer done()
+
+	c := connect(t, host, port, ModeASCII)
+	defer c.Close()
+	if _, err := c.ReadWords("STN", 12, 1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadBitsAsciiDecimalBitDeviceRequest(t *testing.T) {
+	host, port, done := mockRequestServer(t, ModeASCII, ascResp(0, "1"), func(request []byte) error {
+		if got, want := string(request[18:]), "001004010001M 0001000001"; got != want {
+			return fmt.Errorf("ASCII payload = %q, want %q", got, want)
+		}
+		return nil
+	})
+	defer done()
+
+	c := connect(t, host, port, ModeASCII)
+	defer c.Close()
+	if _, err := c.ReadBits("M", 100, 1); err != nil {
+		t.Fatal(err)
 	}
 }
 
