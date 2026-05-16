@@ -40,12 +40,6 @@ var binCode = map[string]byte{
 	"Z":   0xCC,
 }
 
-// wordDevs records devices whose values are addressed as words.
-var wordDevs = map[string]bool{
-	"D": true, "W": true, "R": true, "ZR": true,
-	"TN": true, "STN": true, "CN": true, "Z": true, "SW": true, "SD": true,
-}
-
 // decimalAddrDevs records devices whose device numbers are decimal in ASCII mode.
 var decimalAddrDevs = map[string]bool{
 	"SM": true, "SD": true,
