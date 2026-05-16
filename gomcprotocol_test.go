@@ -88,6 +88,73 @@ func read3EBinRequest(conn net.Conn) error {
 	return err
 }
 
+func read3EBinRequestFrame(conn net.Conn) ([]byte, error) {
+	header := make([]byte, 9)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return nil, err
+	}
+	dataLen := int(binary.LittleEndian.Uint16(header[7:]))
+	if dataLen > maxTestRequestDataLen {
+		return nil, fmt.Errorf("request payload too large: %d > %d", dataLen, maxTestRequestDataLen)
+	}
+	body := make([]byte, dataLen)
+	if _, err := io.ReadFull(conn, body); err != nil {
+		return nil, err
+	}
+	return append(header, body...), nil
+}
+
+func read3EAscRequestFrame(conn net.Conn) ([]byte, error) {
+	header := make([]byte, 18)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return nil, err
+	}
+	dataLen, err := strconv.ParseUint(string(header[14:18]), 16, 16)
+	if err != nil {
+		return nil, err
+	}
+	if dataLen > maxTestRequestDataLen {
+		return nil, fmt.Errorf("request payload too large: %d > %d", dataLen, maxTestRequestDataLen)
+	}
+	body := make([]byte, int(dataLen))
+	if _, err := io.ReadFull(conn, body); err != nil {
+		return nil, err
+	}
+	return append(header, body...), nil
+}
+
+func mockRequestServer(t *testing.T, mode Mode, resp []byte, check func([]byte) error) (host string, port int, done func()) {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		var request []byte
+		if mode == ModeBinary {
+			request, err = read3EBinRequestFrame(conn)
+		} else {
+			request, err = read3EAscRequestFrame(conn)
+		}
+		if err != nil {
+			t.Errorf("read request: %v", err)
+			return
+		}
+		if err := check(request); err != nil {
+			t.Error(err)
+		}
+		conn.Write(resp)
+	}()
+	h, p, _ := net.SplitHostPort(l.Addr().String())
+	port, _ = strconv.Atoi(p)
+	return h, port, func() { l.Close() }
+}
+
 func waitForStackContains(timeout time.Duration, needles ...string) error {
 	deadline := time.Now().Add(timeout)
 	buf := make([]byte, testStackSnapshotBufSize)
@@ -165,6 +232,24 @@ func TestAddrBinLargeAddr(t *testing.T) {
 	}
 }
 
+func TestAddrBinTimerCounterBits(t *testing.T) {
+	tests := []struct {
+		device string
+		addr   int
+		want   []byte
+	}{
+		{device: "TC", addr: 0, want: []byte{0x00, 0x00, 0x00, 0xC0}},
+		{device: "TS", addr: 0, want: []byte{0x00, 0x00, 0x00, 0xC1}},
+		{device: "CC", addr: 5, want: []byte{0x05, 0x00, 0x00, 0xC3}},
+		{device: "CS", addr: 5, want: []byte{0x05, 0x00, 0x00, 0xC4}},
+	}
+	for _, tt := range tests {
+		if got := addrBin(tt.device, tt.addr); !bytes.Equal(got, tt.want) {
+			t.Errorf("addrBin(%q,%d) = %X, want %X", tt.device, tt.addr, got, tt.want)
+		}
+	}
+}
+
 func TestAddrAscWordDevice(t *testing.T) {
 	// Word device: decimal address, device name padded to 2 chars
 	if got, want := addrAsc("D", 100), "D 000100"; got != want {
@@ -182,6 +267,24 @@ func TestAddrAscBitDevice(t *testing.T) {
 func TestAddrAscTwoCharDevice(t *testing.T) {
 	if got, want := addrAsc("SB", 0), "SB000000"; got != want {
 		t.Errorf("addrAsc(SB,0) = %q, want %q", got, want)
+	}
+}
+
+func TestAddrAscTimerCounterBits(t *testing.T) {
+	tests := []struct {
+		device string
+		addr   int
+		want   string
+	}{
+		{device: "TC", addr: 0, want: "TC000000"},
+		{device: "TS", addr: 0, want: "TS000000"},
+		{device: "CC", addr: 15, want: "CC000015"},
+		{device: "CS", addr: 15, want: "CS000015"},
+	}
+	for _, tt := range tests {
+		if got := addrAsc(tt.device, tt.addr); got != tt.want {
+			t.Errorf("addrAsc(%q,%d) = %q, want %q", tt.device, tt.addr, got, tt.want)
+		}
 	}
 }
 
@@ -421,6 +524,66 @@ func TestReadBitsAsc(t *testing.T) {
 		if got[i] != b {
 			t.Errorf("ReadBits[%d] = %v, want %v", i, got[i], b)
 		}
+	}
+}
+
+func TestReadBitsTimerCounterBitRequests(t *testing.T) {
+	binaryCases := []struct {
+		name   string
+		device string
+		start  int
+		want   []byte
+	}{
+		{name: "timer coil", device: "TC", start: 0, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x01, 0x00}},
+		{name: "timer contact", device: "TS", start: 0, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0xC1, 0x01, 0x00}},
+		{name: "counter coil", device: "CC", start: 5, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x05, 0x00, 0x00, 0xC3, 0x01, 0x00}},
+		{name: "counter contact", device: "CS", start: 5, want: []byte{0x10, 0x00, 0x01, 0x04, 0x01, 0x00, 0x05, 0x00, 0x00, 0xC4, 0x01, 0x00}},
+	}
+	for _, tt := range binaryCases {
+		t.Run(tt.name+" binary", func(t *testing.T) {
+			host, port, done := mockRequestServer(t, ModeBinary, binResp(0, []byte{0x10}), func(request []byte) error {
+				if got := request[9:]; !bytes.Equal(got, tt.want) {
+					return fmt.Errorf("binary payload = %X, want %X", got, tt.want)
+				}
+				return nil
+			})
+			defer done()
+
+			c := connect(t, host, port, ModeBinary)
+			defer c.Close()
+			if _, err := c.ReadBits(tt.device, tt.start, 1); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+
+	asciiCases := []struct {
+		name   string
+		device string
+		start  int
+		want   string
+	}{
+		{name: "timer coil", device: "TC", start: 0, want: "001004010001TC0000000001"},
+		{name: "timer contact", device: "TS", start: 0, want: "001004010001TS0000000001"},
+		{name: "counter coil", device: "CC", start: 5, want: "001004010001CC0000050001"},
+		{name: "counter contact", device: "CS", start: 5, want: "001004010001CS0000050001"},
+	}
+	for _, tt := range asciiCases {
+		t.Run(tt.name+" ascii", func(t *testing.T) {
+			host, port, done := mockRequestServer(t, ModeASCII, ascResp(0, "1"), func(request []byte) error {
+				if got := string(request[18:]); got != tt.want {
+					return fmt.Errorf("ASCII payload = %q, want %q", got, tt.want)
+				}
+				return nil
+			})
+			defer done()
+
+			c := connect(t, host, port, ModeASCII)
+			defer c.Close()
+			if _, err := c.ReadBits(tt.device, tt.start, 1); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
