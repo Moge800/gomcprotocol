@@ -125,9 +125,9 @@ func addrBin(dev string, addr int) []byte {
 }
 
 // addrAsc encodes a device address for ASCII mode.
-// Word devices use decimal; bit devices use hex — per Mitsubishi spec.
+// Word devices and timer/counter bits use decimal; most other bit devices use hex.
 func addrAsc(dev string, addr int) string {
-	if wordDevs[dev] {
+	if wordDevs[dev] || decimalAddrDevs[dev] {
 		return fmt.Sprintf("%-2s%06d", dev, addr)
 	}
 	return fmt.Sprintf("%-2s%06X", dev, addr)

@@ -20,6 +20,10 @@ var binCode = map[string]byte{
 	"L":  0x92,
 	"B":  0xA0,
 	"F":  0x93,
+	"TC": 0xC0,
+	"TS": 0xC1,
+	"CC": 0xC3,
+	"CS": 0xC4,
 	"SB": 0xA1,
 	"SW": 0xB5,
 	"SM": 0x91,
@@ -33,6 +37,10 @@ var binCode = map[string]byte{
 var wordDevs = map[string]bool{
 	"D": true, "W": true, "R": true, "ZR": true,
 	"TN": true, "CN": true, "Z": true, "SW": true, "SD": true,
+}
+
+var decimalAddrDevs = map[string]bool{
+	"TC": true, "TS": true, "CC": true, "CS": true,
 }
 
 const (

@@ -126,6 +126,10 @@ Requests issued concurrently on the same client instance are serialized internal
 | `Y` | Bit | Output |
 | `M` | Bit | Internal relay |
 | `L` | Bit | Latch relay |
+| `TC` | Bit | Timer coil |
+| `TS` | Bit | Timer contact |
+| `CC` | Bit | Counter coil |
+| `CS` | Bit | Counter contact |
 | `B` | Bit | Link relay |
 | `F` | Bit | Annunciator |
 | `SB` | Bit | Link special relay |
