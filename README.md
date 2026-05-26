@@ -21,7 +21,10 @@ Use it when you want to expose MC Protocol communication over HTTP from another 
 ## Installation
 
 ```bash
-go get github.com/moge800/gomcprotocol
+go get github.com/moge800/gomcprotocol@latest
+
+# use the latest v1.x release
+go get github.com/moge800/gomcprotocol@v1
 ```
 
 ```go
@@ -204,4 +207,4 @@ Runnable examples are in the [`examples/`](./examples/) directory:
 
 ## License
 
-MIT
+Apache License, Version 2.0

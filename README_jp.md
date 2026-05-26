@@ -21,7 +21,10 @@
 ## インストール
 
 ```bash
-go get github.com/moge800/gomcprotocol
+go get github.com/moge800/gomcprotocol@latest
+
+# 最新の v1 系を利用する場合
+go get github.com/moge800/gomcprotocol@v1
 ```
 
 ```go
@@ -204,4 +207,4 @@ Q シリーズ / iQ-R シリーズのデフォルトポートは通常 `5007` �
 
 ## ライセンス
 
-MIT
+Apache License, Version 2.0
