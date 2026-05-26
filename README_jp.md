@@ -207,4 +207,4 @@ Q シリーズ / iQ-R シリーズのデフォルトポートは通常 `5007` �
 
 ## ライセンス
 
-Apache License 2.0
+Apache License, Version 2.0
