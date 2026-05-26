@@ -23,7 +23,7 @@
 ```bash
 go get github.com/moge800/gomcprotocol@latest
 
-# メジャーリリースを明示して固定する場合
+# 最新の v1 系を利用する場合
 go get github.com/moge800/gomcprotocol@v1
 ```
 

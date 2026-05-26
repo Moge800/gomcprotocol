@@ -23,7 +23,7 @@ Use it when you want to expose MC Protocol communication over HTTP from another 
 ```bash
 go get github.com/moge800/gomcprotocol@latest
 
-# pin a major release explicitly
+# use the latest v1.x release
 go get github.com/moge800/gomcprotocol@v1
 ```
 
