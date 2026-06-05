@@ -2,6 +2,11 @@
 
 [日本語版はこちら](./README_jp.md)
 
+[![Release](https://img.shields.io/github/v/release/moge800/gomcprotocol)](https://github.com/moge800/gomcprotocol/releases/latest)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/github.com/moge800/gomcprotocol.svg)](https://pkg.go.dev/github.com/moge800/gomcprotocol)
+[![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
+
 A Go library for communicating with Mitsubishi PLCs using the MC Protocol (SLMP).
 
 ## Features
