@@ -3,7 +3,7 @@
 // Connects to a PLC at 192.168.0.1:5007 using binary-mode 3E frame,
 // reads 5 consecutive word registers starting at D100, and prints them.
 //
-// Expected output:
+// Example output (when D100–D104 are all zero):
 //
 //	D100 = 0
 //	D101 = 0
@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	// New3EClient creates a 3E-frame client. ModeBinary is compact and recommended.
+	// New3EClient creates a 3E-frame client. ModeBinary uses a compact binary representation.
 	// Call Connect() before any read/write operations.
 	c, err := mc.New3EClient("192.168.0.1", 5007, mc.ModeBinary)
 	if err != nil {

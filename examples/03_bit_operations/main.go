@@ -40,7 +40,8 @@ func main() {
 	fmt.Println()
 
 	// WriteBits writes a slice of bool values to consecutive bit addresses.
-	// M is an internal relay — safe to use freely in tests and examples.
+	// M is an internal relay commonly used for internal PLC logic.
+	// Use an address that is known to be unused when testing on a real PLC.
 	if err := c.WriteBits("M", 0, []bool{true, false, true, false}); err != nil { // M0–M3
 		panic(err)
 	}
