@@ -25,7 +25,7 @@ func main() {
 	// Pass nil for either slice if that type is not needed.
 	words, dwords, err := c.RandomRead(
 		[]mc.DeviceAddr{{Device: "D", Addr: 100}, {Device: "D", Addr: 200}}, // word reads: D100, D200
-		[]mc.DeviceAddr{{Device: "D", Addr: 300}},                          // dword read: D300–D301 as uint32
+		[]mc.DeviceAddr{{Device: "D", Addr: 300}},                           // dword read: D300–D301 as uint32
 	)
 	if err != nil {
 		panic(err)
@@ -39,7 +39,7 @@ func main() {
 		[]mc.DeviceAddr{{Device: "D", Addr: 100}, {Device: "D", Addr: 200}}, // word addresses
 		[]uint16{10, 20}, // D100=10, D200=20
 		[]mc.DeviceAddr{{Device: "D", Addr: 300}}, // dword address
-		[]uint32{100000},                          // D300–D301 = 100000
+		[]uint32{100000}, // D300–D301 = 100000
 	)
 	if err != nil {
 		panic(err)
