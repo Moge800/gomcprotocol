@@ -24,8 +24,8 @@ func main() {
 	// RandomRead reads word (uint16) and dword (uint32) addresses in one request.
 	// Pass nil for either slice if that type is not needed.
 	words, dwords, err := c.RandomRead(
-		[]mc.DeviceAddr{{"D", 100}, {"D", 200}}, // word reads:  D100, D200
-		[]mc.DeviceAddr{{"D", 300}},              // dword read:  D300–D301 as uint32
+		[]mc.DeviceAddr{{Device: "D", Addr: 100}, {Device: "D", Addr: 200}}, // word reads: D100, D200
+		[]mc.DeviceAddr{{Device: "D", Addr: 300}},                          // dword read: D300–D301 as uint32
 	)
 	if err != nil {
 		panic(err)
@@ -36,9 +36,9 @@ func main() {
 
 	// RandomWrite writes word and dword values in one request.
 	err = c.RandomWrite(
-		[]mc.DeviceAddr{{"D", 100}, {"D", 200}}, // word addresses
-		[]uint16{10, 20},                          // D100=10, D200=20
-		[]mc.DeviceAddr{{"D", 300}},              // dword address
+		[]mc.DeviceAddr{{Device: "D", Addr: 100}, {Device: "D", Addr: 200}}, // word addresses
+		[]uint16{10, 20}, // D100=10, D200=20
+		[]mc.DeviceAddr{{Device: "D", Addr: 300}}, // dword address
 		[]uint32{100000},                          // D300–D301 = 100000
 	)
 	if err != nil {
@@ -48,8 +48,8 @@ func main() {
 
 	// RandomWriteBits writes to bit devices at scattered addresses in one request.
 	err = c.RandomWriteBits(
-		[]mc.DeviceAddr{{"M", 0}, {"M", 10}, {"Y", 5}}, // target addresses
-		[]bool{true, false, true},                         // M0=ON, M10=OFF, Y5=ON
+		[]mc.DeviceAddr{{Device: "M", Addr: 0}, {Device: "M", Addr: 10}, {Device: "Y", Addr: 5}}, // target addresses
+		[]bool{true, false, true}, // M0=ON, M10=OFF, Y5=ON
 	)
 	if err != nil {
 		panic(err)

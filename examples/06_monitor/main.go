@@ -26,9 +26,9 @@ const (
 
 // monitored is the list of word devices to watch.
 var monitored = []mc.DeviceAddr{
-	{"D", 100},
-	{"D", 101},
-	{"D", 200},
+	{Device: "D", Addr: 100},
+	{Device: "D", Addr: 101},
+	{Device: "D", Addr: 200},
 }
 
 func connect() (*mc.Client3E, error) {
