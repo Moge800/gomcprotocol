@@ -3,6 +3,9 @@
 // RandomRead and RandomWrite bundle multiple device addresses into a single
 // MC Protocol packet, reducing round-trips compared to individual ReadWords calls.
 // Use this when reading scattered addresses or mixing word (16-bit) and dword (32-bit) values.
+//
+// This example WRITES to D100, D200, D300–D301, M0, M10 and M20.
+// Before running on a real PLC, change these to addresses known to be unused.
 package main
 
 import (
@@ -48,8 +51,8 @@ func main() {
 
 	// RandomWriteBits writes to bit devices at scattered addresses in one request.
 	err = c.RandomWriteBits(
-		[]mc.DeviceAddr{{Device: "M", Addr: 0}, {Device: "M", Addr: 10}, {Device: "Y", Addr: 5}}, // target addresses
-		[]bool{true, false, true}, // M0=ON, M10=OFF, Y5=ON
+		[]mc.DeviceAddr{{Device: "M", Addr: 0}, {Device: "M", Addr: 10}, {Device: "M", Addr: 20}}, // target addresses
+		[]bool{true, false, true}, // M0=ON, M10=OFF, M20=ON
 	)
 	if err != nil {
 		panic(err)

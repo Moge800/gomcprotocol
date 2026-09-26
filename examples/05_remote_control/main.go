@@ -1,8 +1,11 @@
 // 05_remote_control: Remote control sequence — stop → latch clear → run.
 //
 // !! WARNING !!
-// Running this program STOPS the connected PLC.
-// Do NOT run while equipment is in operation.
+// Running this program STOPS the connected PLC and then performs a latch clear,
+// which ERASES the values of latched (power-failure retained) devices.
+// The erased data cannot be recovered.
+// Do NOT run while equipment is in operation or on a PLC holding data you need.
+// If any step after the stop fails, the PLC is left in STOP.
 // Type "yes" at the prompt to confirm before proceeding.
 package main
 
@@ -17,7 +20,7 @@ import (
 )
 
 func main() {
-	fmt.Println("!! WARNING !! This program will STOP the PLC.")
+	fmt.Println("!! WARNING !! This program will STOP the PLC and ERASE latched device data.")
 	fmt.Print("Continue? (yes/no): ")
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -48,7 +51,8 @@ func main() {
 	// The PLC must already be stopped before calling this.
 	fmt.Println("clearing latch...")
 	if err := c.RemoteLatchClear(); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "latch clear failed; the PLC remains in STOP:", err)
+		os.Exit(1)
 	}
 	fmt.Println("latch cleared")
 	time.Sleep(500 * time.Millisecond)
@@ -60,7 +64,8 @@ func main() {
 	//   force false  — abort if another device is already in remote control
 	fmt.Println("starting PLC...")
 	if err := c.RemoteRun(0, false); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "run failed; the PLC remains in STOP:", err)
+		os.Exit(1)
 	}
 	fmt.Println("running")
 }

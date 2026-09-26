@@ -1,10 +1,11 @@
-// 03_bit_operations: Read and write bit devices (X, M, Y).
+// 03_bit_operations: Read and write bit devices (X, M).
 //
 // Bit devices represent single on/off signals:
 //
-//	X — input relay  (reflects physical input terminals; typically read-only)
-//	Y — output relay (drives physical output terminals)
-//	M — internal relay (general-purpose; freely readable and writable)
+//	X — input relay    (reflects physical input terminals; typically read-only)
+//	M — internal relay (not wired to terminals, but may still be used by the PLC program)
+//
+// Y (output relay) drives physical output terminals, so this example does not write to it.
 package main
 
 import (

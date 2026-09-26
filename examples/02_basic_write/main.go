@@ -2,6 +2,9 @@
 //
 // Writes three values to D200–D202, then reads them back.
 // Reading back after writing is a simple way to confirm the operation succeeded.
+//
+// This example WRITES to D200–D202. Before running on a real PLC,
+// change the address to one known to be unused.
 package main
 
 import (

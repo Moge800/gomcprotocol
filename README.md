@@ -205,7 +205,7 @@ Runnable examples are in the [`examples/`](./examples/) directory:
 |-----------|-------------|
 | [`01_basic_read`](./examples/01_basic_read/main.go) | Read word devices (minimal) |
 | [`02_basic_write`](./examples/02_basic_write/main.go) | Write words and read back |
-| [`03_bit_operations`](./examples/03_bit_operations/main.go) | Read/write bit devices (X, M, Y) |
+| [`03_bit_operations`](./examples/03_bit_operations/main.go) | Read/write bit devices (X, M) |
 | [`04_random_access`](./examples/04_random_access/main.go) | RandomRead/RandomWrite across multiple devices |
 | [`05_remote_control`](./examples/05_remote_control/main.go) | Stop → LatchClear → Run sequence |
 | [`06_monitor`](./examples/06_monitor/main.go) | Polling loop with change detection and auto-reconnect |

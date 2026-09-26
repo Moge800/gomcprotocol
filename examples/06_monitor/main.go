@@ -1,7 +1,8 @@
 // 06_monitor: Poll multiple devices on a fixed interval and print value changes.
 //
 //   - Polls D100, D101, D200 every 500 ms using RandomRead (one request per cycle).
-//   - Prints a timestamped line only when a value changes since the last cycle.
+//   - Prints the initial values once, then a timestamped line only when a value
+//     changes since the last cycle.
 //   - Reconnects automatically on connection loss; retries every 3 s.
 //   - Terminates cleanly on Ctrl+C (SIGINT/SIGTERM).
 package main
@@ -58,12 +59,13 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// Ticker drives the poll cycle. The select below handles both tick and quit
-	// without blocking — no sleep, no goroutine per device.
+	// Ticker drives the poll cycle. The select below waits for whichever comes
+	// first, the next tick or a quit signal — no sleep, no goroutine per device.
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	prev := make([]uint16, len(monitored)) // last-seen values
+	havePrev := false                      // false until the first successful read
 	var c *mc.Client3E                     // nil = not connected
 
 	fmt.Println("monitoring (Ctrl+C to quit)")
@@ -113,6 +115,17 @@ func main() {
 			default:
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			}
+			continue
+		}
+
+		// The first read has nothing to compare against, so print it as the initial state.
+		if !havePrev {
+			for i, addr := range monitored {
+				fmt.Printf("[%s] %s%d: %d (initial)\n",
+					time.Now().Format("15:04:05"), addr.Device, addr.Addr, words[i])
+			}
+			copy(prev, words)
+			havePrev = true
 			continue
 		}
 
